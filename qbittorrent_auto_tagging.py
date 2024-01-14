@@ -1,5 +1,5 @@
 import qbittorrentapi as qbit
-import os, datetime
+import os, datetime, sys
 import yaml 
 
 # 全部tag
@@ -115,23 +115,84 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
             tags.update({tag_key:f'{tags_prefix[tag_key]}{tag_value}' if tag_value else ''})
     return tags
 
-if __name__ == "__main__":
-    with open('config.yaml', 'r', encoding='utf-8') as f:
+def handle_torrrent(client, torrent:qbit.TorrentDictionary, 
+                    trackers:dict, tags_prefix:dict, tags_to_record:list, overwrite:bool):
+    # handle category
+    category = ''
+    for tracker in torrent.trackers:
+        for cat, url in trackers.items():
+            if str.lower(url) in str.lower(tracker.url):
+                category = cat
+                break
+        if category:
+            break
+    if category:
+        client.torrents_set_category(category, torrent_hashes=[torrent.hash])
+        print(f'category: {category}') 
+            
+    # handle tags
+    tags = decode_torrent_tags(torrent.name, tags_prefix)
+    if tags:
+        tags_needed = {label: tags[label] for label in tags_to_record}.values()
+        if overwrite:
+            client.torrents_remove_tags(torrent_hashes=[torrent.hash])
+        client.torrents_add_tags(tags_needed, torrent_hashes=[torrent.hash])
+        print(f'tags: {tags}')
+
+def process_new(info_hash:str):
+    current_dir = os.path.dirname(__file__)
+    with open(os.path.join(current_dir, 'config.yaml'), 'r', encoding='utf-8') as f:
         config = yaml.load(f, Loader=yaml.Loader)
         
     host, port, username, password = config['host'], config['port'], config['username'], config['password']
     conn_info = dict(host=host, port=port, username=username, password=password,)
     client = qbit.Client(**conn_info)
 
-    # 关注的后缀
-    extents = config['extents']
     # 在tag前加上前缀以区分不同类型的tag
     tags_prefix = config['tags_prefix']
     # 记录的标签
     tags_to_record = config['tags_to_record']
     # 服务器缩写：url关键词，用于创建种子的categories
     trackers = config['trackers']
-    max_files_single_torrent = config['max_files_single_torrent']
+    # 是否清除已有标签
+    overwrite = config['overwrite']
+    try:
+        client.auth_log_in()
+        categories_exist = client.torrent_categories.categories
+        for cat, url in trackers.items():
+            if cat not in categories_exist:
+                client.torrents_create_category(cat)
+                
+        torrent_list = client.torrents_info()
+        torrents_found = [t for t in torrent_list if t.info.hash == info_hash]
+        if len(torrents_found) < 1:
+            print(f'Torrent with hash {info_hash} unfound, exiting...')
+        else:
+            torrent = torrents_found[0]
+            print(f'Handling torrent {torrent.name}...')
+            handle_torrrent(client, torrent=torrent, trackers=trackers, tags_prefix=tags_prefix, 
+                            tags_to_record=tags_to_record, overwrite=overwrite)
+    except qbit.LoginFailed as e:
+        print(e)
+    client.auth_log_out()
+
+def process_all():
+    current_dir = os.path.dirname(__file__)
+    with open(os.path.join(current_dir, 'config.yaml'), 'r', encoding='utf-8') as f:
+        config = yaml.load(f, Loader=yaml.Loader)
+        
+    host, port, username, password = config['host'], config['port'], config['username'], config['password']
+    conn_info = dict(host=host, port=port, username=username, password=password,)
+    client = qbit.Client(**conn_info)
+
+    # 在tag前加上前缀以区分不同类型的tag
+    tags_prefix = config['tags_prefix']
+    # 记录的标签
+    tags_to_record = config['tags_to_record']
+    # 服务器缩写：url关键词，用于创建种子的categories
+    trackers = config['trackers']
+    # 是否清除已有标签
+    overwrite = config['overwrite']
     try:
         client.auth_log_in()
         categories_exist = client.torrent_categories.categories
@@ -144,52 +205,19 @@ if __name__ == "__main__":
         count = 0
         for torrent in torrent_list:
             count += 1
-            print(f'({count} / {total}) Handling torrent {torrent.hash}...')
-            files = client.torrents_files(hash=(torrent.hash))
-            tags = {}
-            names = []
-            files_valid = []
-            if max_files_single_torrent > 0 and len(files) > max_files_single_torrent:
-                print(f'File number {len(files)} in the current torrent exceed maximum value {max_files_single_torrent}. Skipping this torrent...')
-                continue
-            for f in files:
-                name = os.path.basename(f['name'])
-                name, ext = os.path.splitext(name)
-                if ext in extents:
-                    names.append(name)
-                    files_valid.append(f['name'])
-            if len(files_valid) > 1:
-                # 如果种子种包含多个视频文件，取其中第一个文件的顶级文件夹名
-                current = files_valid[0]
-                prev = ''
-                while os.path.dirname(current) and prev != current:
-                    prev = current
-                    current = os.path.dirname(current)
-                name = current
-                print(f'Handling directory {name}')
-            elif len(files_valid) == 1:
-                name = names[0]
-                print(f'Handling file {name}')
-            else:
-                print(f'No valid file to process, skipping this torrent')
-                continue
-            tags = decode_torrent_tags(name, tags_prefix)
-            category = ''
-            for tracker in torrent.trackers:
-                for cat, url in trackers.items():
-                    if str.lower(url) in str.lower(tracker.url):
-                        category = cat
-                        break
-                if category:
-                    break
-            if tags:
-                tags_needed = {label: tags[label] for label in tags_to_record}.values()
-                client.torrents_removeTags(torrent_hashes=[torrent.hash])
-                client.torrents_add_tags(tags_needed, torrent_hashes=[torrent.hash])
-                print(f'tags: {tags}')
-            if category:
-                client.torrents_setCategory(category, torrent_hashes=[torrent.hash])
-                print(f'category: {category}')
+            print(f'({count} / {total}) Handling torrent {torrent.name}...')
+            handle_torrrent(client, torrent=torrent, trackers=trackers, tags_prefix=tags_prefix, 
+                            tags_to_record=tags_to_record, overwrite=overwrite)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        process_all()
+    else:
+        info_hash = sys.argv[1]
+        process_new(info_hash)
+               
+            
+    
