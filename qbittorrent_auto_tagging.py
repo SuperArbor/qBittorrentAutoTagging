@@ -8,6 +8,7 @@ TAGS_ALL = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 
 SPLITS = ['.', ' ']
 # 压制组前缀
 SPLIT_TEAM = '-'
+EXTENTS = ['.mkv', '.mp4']
 CONTENT_TYPES = ['Movie', 'TV']
 MEDIA_TYPES = ['BluRay', 'Blu-ray', 'BDRip', 'DVD', 'DVDRip', 'HDDVD', 'HDTV', 'WEB', 'WEB-DL', 'WEBRip']
 PROCESS_TYPES = ['Raw', 'Encode']
@@ -18,6 +19,9 @@ YEAR_MAX = datetime.datetime.now().year
 
 def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
     # 解析文件名以生成tags
+    root, ext = os.path.splitext(file_name)
+    if str.lower(ext) in EXTENTS:
+        file_name = root
     split = ''
     groups = []
     for s in SPLITS:
