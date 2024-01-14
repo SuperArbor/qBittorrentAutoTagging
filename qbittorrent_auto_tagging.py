@@ -116,7 +116,8 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
     return tags
 
 def handle_torrrent(client, torrent:qbit.TorrentDictionary, 
-                    trackers:dict, tags_prefix:dict, tags_to_record:list, overwrite:bool):
+                    trackers:dict, trackers_for_tagging:list,
+                    tags_prefix:dict, tags_to_record:list, overwrite:bool):
     # handle category
     category = ''
     for tracker in torrent.trackers:
@@ -131,13 +132,14 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
         print(f'category: {category}') 
             
     # handle tags
-    tags = decode_torrent_tags(torrent.name, tags_prefix)
-    if tags:
-        tags_needed = {label: tags[label] for label in tags_to_record}.values()
-        if overwrite:
-            client.torrents_remove_tags(torrent_hashes=[torrent.hash])
-        client.torrents_add_tags(tags_needed, torrent_hashes=[torrent.hash])
-        print(f'tags: {tags}')
+    if category in trackers_for_tagging:
+        tags = decode_torrent_tags(torrent.name, tags_prefix)
+        if tags:
+            tags_needed = {label: tags[label] for label in tags_to_record}.values()
+            if overwrite:
+                client.torrents_remove_tags(torrent_hashes=[torrent.hash])
+            client.torrents_add_tags(tags_needed, torrent_hashes=[torrent.hash])
+            print(f'tags: {tags}')
 
 def process_new(info_hash:str):
     current_dir = os.path.dirname(__file__)
@@ -156,6 +158,8 @@ def process_new(info_hash:str):
     trackers = config['trackers']
     # 是否清除已有标签
     overwrite = config['overwrite']
+    # 需要打标的trackers
+    trackers_for_tagging = config['trackers_for_tagging'] if config['trackers_for_tagging'] else trackers.values()
     try:
         client.auth_log_in()
         categories_exist = client.torrent_categories.categories
@@ -166,12 +170,12 @@ def process_new(info_hash:str):
         torrent_list = client.torrents_info()
         torrents_found = [t for t in torrent_list if t.info.hash == info_hash]
         if len(torrents_found) < 1:
-            print(f'Torrent with hash {info_hash} unfound, exiting...')
+            print(f'Torrent with hash {info_hash} unfound, skip it')
         else:
             torrent = torrents_found[0]
             print(f'Handling torrent {torrent.name}...')
-            handle_torrrent(client, torrent=torrent, trackers=trackers, tags_prefix=tags_prefix, 
-                            tags_to_record=tags_to_record, overwrite=overwrite)
+            handle_torrrent(client, torrent=torrent, trackers=trackers, trackers_for_tagging=trackers_for_tagging, 
+                            tags_prefix=tags_prefix, tags_to_record=tags_to_record, overwrite=overwrite)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -193,21 +197,25 @@ def process_all():
     trackers = config['trackers']
     # 是否清除已有标签
     overwrite = config['overwrite']
+    # 需要打标的trackers
+    trackers_for_tagging = config['trackers_for_tagging'] if config['trackers_for_tagging'] else trackers.values()
     try:
         client.auth_log_in()
         categories_exist = client.torrent_categories.categories
         for cat, url in trackers.items():
             if cat not in categories_exist:
                 client.torrents_create_category(cat)
-                
+        
+        print(f'Fetching all the torrents from the client...')        
         torrent_list = client.torrents_info()
         total = len(torrent_list)
+        print(f'Done. {total} torrents to process.')        
         count = 0
         for torrent in torrent_list:
             count += 1
             print(f'({count} / {total}) Handling torrent {torrent.name}...')
-            handle_torrrent(client, torrent=torrent, trackers=trackers, tags_prefix=tags_prefix, 
-                            tags_to_record=tags_to_record, overwrite=overwrite)
+            handle_torrrent(client, torrent=torrent, trackers=trackers, trackers_for_tagging=trackers_for_tagging,
+                            tags_prefix=tags_prefix,  tags_to_record=tags_to_record, overwrite=overwrite)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -219,5 +227,3 @@ if __name__ == "__main__":
         info_hash = sys.argv[1]
         process_new(info_hash)
                
-            
-    

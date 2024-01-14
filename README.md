@@ -20,7 +20,34 @@ pip install PyYAML
 
 在根目录下创建config.yaml文件，格式参考config.yaml.temp。
 
-值得注意的是，必须在qBittorrent的设置 > WebUI > 验证中手动设置用户名和密码后，才能远程登陆，默认密码不一定能用。
+```yaml
+# qbittorrent所在主机的ip、端口
+host: localhost
+port: 8080
+# qbittorrent的webui的用户名、密码，在qBittorrent的设置 > WebUI > 验证中手动设置用户名和密码后，才能远程登陆，默认密码不一定能用
+username: admin
+password: admin
+# 是否清除已有标签
+overwrite: false
+# 在tag前加上前缀以区分不同类型的tag
+tags_prefix:
+  content: '#'
+  media: '$'
+  team: '-'
+# 记录的标签，可选的标签范围 TAGS_ALL = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+tags_to_record:
+  - content
+  - media
+  - resolution
+  - team
+# 服务器缩写：url关键词，用于创建种子的categories
+trackers:
+  NHD: nexushd
+  PuTao: pt.sjtu
+# 从上一个条目的keys中选择需要打标的trackers，如果留白，则全部处理
+trackers_for_tagging:
+  - NHD
+```
 
 ### 使用
 

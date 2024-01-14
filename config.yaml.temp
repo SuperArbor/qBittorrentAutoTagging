@@ -21,8 +21,8 @@ tags_to_record:
 trackers:
   NHD: nexushd
   PuTao: pt.sjtu
-  TTG: totheglory
-  GPW: greatposterwall
-  MT: m-team
-  UHD: uhdbits
-  PTer: pterclub
+  U2: dmhy
+# 从上一个条目的keys中选择需要打标的trackers，如果留白，则全部处理
+trackers_for_tagging:
+  - U2
+  - NHD
