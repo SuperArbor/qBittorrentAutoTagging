@@ -52,11 +52,11 @@ trackers_for_tagging:
 
 使用分为两种场景：
 
-* 一次性识别qBittorrent客户端中现有种子
+#### 一次性识别qBittorrent客户端中现有种子
 
 在设置了config.yaml的基础上，直接运行qbittorrent_auto_tagging.py文件即可（实际调用脚本中的process_all()方法）。
 
-* 识别新添加的种子
+#### 识别新添加的种子
 
 利用qBittorrent设置 > 下载 > Torrent完成时运行外部程序功能，在完成新下载任务后，自动触发调用脚本中的process_new()方法。方法为在该设置UI处，填写命令行指令
 
