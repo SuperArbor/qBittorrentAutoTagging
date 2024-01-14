@@ -35,13 +35,17 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
     for media_type in MEDIA_TYPES:
         for i in range(len(groups_lowered)):
             if str.lower(media_type) == groups_lowered[i]:
-                if media_type in ['Blu-ray', 'BDRip']:
-                    media_type = 'BluRay'
-                elif media_type in ['WEB-DL', 'WEBRip']:
-                    media_type = 'WEB'
-                elif media_type in ['HDDVD', 'DVDRip']:
-                    media_type = 'DVD'
-                media = media_type
+                if groups_lowered[i] in [str.lower(mt) for mt in ['BluRay', 'Blu-ray', 'BDRip']]:
+                    # including cases such as 'bluray', 'Bluray'
+                    media = 'BluRay'
+                elif groups_lowered[i] in [str.lower(mt) for mt in ['WEB', 'WEB-DL', 'WEBRip']]:
+                    media = 'WEB'
+                elif groups_lowered[i] in [str.lower(mt) for mt in ['DVD', 'HDDVD', 'DVDRip']]:
+                    media = 'DVD'
+                elif groups_lowered[i] in [str.lower(mt) for mt in ['HDTV']]:
+                    media = 'HDTV'
+                else:
+                    media = media_type
                 marked.append(i)
                 break
         if media:
