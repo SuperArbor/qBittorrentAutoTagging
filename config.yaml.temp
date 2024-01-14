@@ -4,12 +4,8 @@ port: 8080
 # qbittorrent的webui的用户名、密码
 username: admin
 password: admin
-# 对于已有标签的情况，是否覆盖，当前api无法实现
+# 是否清除已有标签
 overwrite: false
-# 关注的后缀
-extents:
-  - .mkv
-  - .mp4'
 # 在tag前加上前缀以区分不同类型的tag
 tags_prefix:
   content: '#'
@@ -30,5 +26,3 @@ trackers:
   MT: m-team
   UHD: uhdbits
   PTer: pterclub
-# 过滤掉文件数量比较多的情况，如果不限制，设置为-1
-max_files_single_torrent: 100
