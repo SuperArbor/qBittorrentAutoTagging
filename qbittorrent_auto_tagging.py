@@ -159,7 +159,7 @@ def process_new(info_hash:str):
     # 是否清除已有标签
     overwrite = config['overwrite']
     # 需要打标的trackers
-    trackers_for_tagging = config['trackers_for_tagging'] if config['trackers_for_tagging'] else trackers.values()
+    trackers_for_tagging = config['trackers_for_tagging'] if config['trackers_for_tagging'] else list(trackers.keys())
     try:
         client.auth_log_in()
         categories_exist = client.torrent_categories.categories
@@ -198,7 +198,7 @@ def process_all():
     # 是否清除已有标签
     overwrite = config['overwrite']
     # 需要打标的trackers
-    trackers_for_tagging = config['trackers_for_tagging'] if config['trackers_for_tagging'] else trackers.values()
+    trackers_for_tagging = config['trackers_for_tagging'] if config['trackers_for_tagging'] else list(trackers.keys())
     try:
         client.auth_log_in()
         categories_exist = client.torrent_categories.categories
