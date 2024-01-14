@@ -31,6 +31,7 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
     media = ''
     resolution = ''
     groups_lowered = [str.lower(group) for group in groups]
+    # record the fields that have been handeled
     marked = []
     for media_type in MEDIA_TYPES:
         for i in range(len(groups_lowered)):
@@ -43,16 +44,29 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
                 elif groups_lowered[i] in [str.lower(mt) for mt in ['DVD', 'HDDVD', 'DVDRip']]:
                     media = 'DVD'
                 elif groups_lowered[i] in [str.lower(mt) for mt in ['HDTV']]:
-                    media = 'HDTV'
+                    media = 'HDTV'                
                 else:
                     media = media_type
                 marked.append(i)
                 break
         if media:
-            break    
+            break
+        
+    if not media:
+        # sometimes 'BluRay' is omitted when 'UHD' presents
+        # 'UHD' and 'BluRay' can also both be included, thus handle this occation after 'BluRay' is failed to be detected
+        for i in range(len(groups_lowered)):
+            if i in marked:
+                continue
+            if groups_lowered[i] == 'uhd':
+                media = 'BluRay'
+                marked.append(i)
+                break          
         
     for reso_type in RESOLUTION_TYPES:
         for i in range(len(groups_lowered)):
+            if i in marked:
+                continue
             if str.lower(reso_type) == groups_lowered[i]:
                 resolution = reso_type
                 marked.append(i)
