@@ -4,6 +4,8 @@ port: 8080
 # qbittorrent的webui的用户名、密码
 username: admin
 password: admin
+# 对于已有标签的情况，是否覆盖，当前api无法实现
+overwrite: false
 # 关注的后缀
 extents:
   - .mkv
