@@ -154,7 +154,7 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
         if category:
             break
     if category:
-        client.torrents_set_category(category, torrent_hashes=[torrent.hash])
+        client.torrents_set_category(category, torrent_hashes=torrent.hash)
         print(f'category: {category}') 
             
     # handle tags
@@ -163,8 +163,8 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
         if tags:
             tags_needed = {label: tags[label] for label in tags_to_record}.values()
             if overwrite:
-                client.torrents_remove_tags(torrent_hashes=[torrent.hash])
-            client.torrents_add_tags(tags_needed, torrent_hashes=[torrent.hash])
+                client.torrents_remove_tags(torrent_hashes=torrent.hash)
+            client.torrents_add_tags(tags_needed, torrent_hashes=torrent.hash)
             print(f'tags: {tags}')
 
 def process_new(info_hash:str):
