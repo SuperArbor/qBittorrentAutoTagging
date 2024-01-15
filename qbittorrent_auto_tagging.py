@@ -108,7 +108,7 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
             break
     
     year = ''
-    content = 'Movie'
+    content = ''
     for i in reversed(range(len(groups_lowered))):
         if year and content:
             break
@@ -125,6 +125,9 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
                 continue
         except:
             pass
+        
+    if not content:
+        content = 'Movie'
     
     marked.sort()
     name_idx = marked[0]
