@@ -193,14 +193,12 @@ def process_new(info_hash:str):
             if cat not in categories_exist:
                 client.torrents_create_category(cat)
                 
-        print(f'Fetching all the torrents from the client...')        
-        torrent_list = client.torrents_info()
-        print(f'Done. {len(torrent_list)} torrents to match.')        
-        torrents_found = [t for t in torrent_list if t.info.hash == info_hash]
-        if len(torrents_found) < 1:
+        print(f'Fetching specified torrent from the client...')        
+        torrent_list = client.torrents_info(torrent_hashes=info_hash)
+        if len(torrent_list) < 1:
             print(f'Torrent with hash {info_hash} unfound, skip it')
         else:
-            torrent = torrents_found[0]
+            torrent = torrent_list[0]
             print(f'Handling torrent {torrent.name}...')
             handle_torrrent(client, torrent=torrent, trackers=trackers, trackers_for_tagging=trackers_for_tagging, 
                             tags_prefix=tags_prefix, tags_to_record=tags_to_record, overwrite=overwrite)
