@@ -3,7 +3,7 @@
 ## 相关说明
 
 * 脚本功能：自动对qBittorrent中的torrent设置标签（按照内容、媒介、分辨率、压制组等）。
-* 脚本中针对tagging的功能对qBittorrent版本有要求，估计至少在4.2以上，个人只在4.3.9版本测试过。
+* 脚本中针对tagging的功能对qBittorrent版本有要求，估计至少在4.2以上。而“新增Torrent时运行”选项只在qBittorrent4.6以上版本中有，在较早版本中只有“Torrent完成时运行”选项。
 * 仅测试过Windows10，其他操作系统请自行测试。
 * 如果你原本就用到了qBittorrent的tagging系统，请谨慎使用该脚本，以免覆盖原有标签。作者不对任何后果负责。
 * 依赖的库：qbittorrent-api, PyYAML，通过如下方法安装
@@ -58,13 +58,15 @@ trackers_for_tagging:
 
 #### 识别新添加的种子
 
-在设置了config.yaml的基础上，开启qBittorrent设置 > 下载 > Torrent完成时运行外部程序功能，在完成新下载任务后，自动触发调用脚本中的process_new()方法。在该设置UI处，填写命令行指令
+在设置了config.yaml的基础上，勾选qBittorrent设置 > 下载 > 运行外部程序 > 新增Torrent时运行，在添加新下载任务后，自动触发调用脚本中的process_new()方法。在该设置UI处，填写命令行指令
 
 ```shell
 # 需要替换真实的python.exe和qBittorrent_auto_tagging.py路径
 # 注意在系统中存在多个版本的python虚拟环境时，这里填写的python.exe必须是安装了依赖的虚拟环境对应的python路径
 path\to\python.exe path\to\script\qbittorrent_auto_tagging.py "%I"
 ```
+
+注意：在qBittorrent较早版本如4.3.9中，只能选“Torrent完成时运行”。 这种情况下，外部程序在正常下载完成时或Hash校验完成后触发，**如果采用跳过校验的方式添加种子，指令不触发**。
 
 qBittorrent执行外部程序时，遇到问题不会报错。调试阶段可以在qBittorrent的视图 > 日志处开启“显示”功能，在新出现的“执行日志”页面可以看到调用外部程序时的完整指令，如
 
@@ -74,5 +76,3 @@ path\to\python.exe C:\xxx\qbittorrent_auto_tagging.py "a13685a7912e1cb0ed9ba7597
 ```
 
 复制该指令到PowerShell终端运行，有助于借助脚本输出内容排查问题。
-
-经测试， 外部程序在正常下载完成时触发。如果添加的种子文件在本地已经存在，经qBittorrent客户端校验完成后也会触发。**如果采用跳过校验的方式添加种子，指令不触发**。
