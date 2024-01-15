@@ -1,5 +1,5 @@
 import qbittorrentapi as qbit
-import os, datetime, sys
+import os, datetime, sys, re
 import yaml 
 
 # 全部tag
@@ -114,7 +114,8 @@ def decode_torrent_tags(file_name:str, tags_prefix:dict) -> dict:
             break
         if i in marked:
             continue
-        if groups_lowered[i].startswith('s0'):
+        match = re.match(r's\d\d.*', groups_lowered[i], re.IGNORECASE)
+        if match:
             content = 'TV'
             marked.append(i)
             continue
