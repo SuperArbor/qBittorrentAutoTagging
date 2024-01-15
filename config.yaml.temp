@@ -20,7 +20,7 @@ tags_to_record:
 # 服务器缩写：url关键词，用于创建种子的categories
 trackers:
   NHD: nexushd
-  PuTao: pt.sjtu
+  PuTao: sjtu
   U2: dmhy
 # 从上一个条目的keys中选择需要打标的trackers，如果留白，则全部处理
 trackers_for_tagging:
