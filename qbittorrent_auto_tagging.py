@@ -188,6 +188,9 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
     if (not trackers_to_ignore) or (category not in trackers_to_ignore):
         # handle category
         if category:
+            categories_exist = client.torrent_categories.categories
+            if category not in categories_exist:
+                client.torrents_create_category(category)
             client.torrents_set_category(category, torrent_hashes=torrent.hash)
             print(f'category: {category}') 
         
@@ -233,10 +236,6 @@ def process_new(info_hash:str, config:dict, statistics:dict):
     statistics_total = statistics['TOTAL'] or {'team':{}}
     try:
         client.auth_log_in()
-        categories_exist = client.torrent_categories.categories
-        for cat in trackers.keys():
-            if cat not in categories_exist:
-                client.torrents_create_category(cat)
                 
         print(f'Fetching specified torrent from the client...')        
         torrent_list = client.torrents_info(torrent_hashes=info_hash)
@@ -302,11 +301,6 @@ def process_all(config:dict, statistics:dict) -> dict:
             
     try:
         client.auth_log_in()
-        categories_exist = client.torrent_categories.categories
-        for cat in trackers.keys():
-            if cat not in categories_exist:
-                client.torrents_create_category(cat)
-        
         print(f'Fetching all the torrents from the client...')        
         torrent_list = client.torrents_info()
         total = len(torrent_list)
@@ -330,6 +324,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                         statistics_total[tag_type][tag_entry] = 1
                     
                     if category:
+                        if category not in statistics_categories.keys():
+                            statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
                         if tag_entry in statistics_categories[category][tag_type].keys():
                             statistics_categories[category][tag_type][tag_entry] += 1
                         else:
@@ -354,16 +350,6 @@ def process_all(config:dict, statistics:dict) -> dict:
                 tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
                 tags_to_remove = tags_of_type[tags_limit_of_type: -1]
                 client.torrents_delete_tags(tags=tags_to_remove)
-        
-        # remove categories with no entries
-        categories_to_remove = []
-        for category in client.torrent_categories.categories:
-            torrent_list = client.torrents_info(category=category)
-            if len(torrent_list) == 0:
-                categories_to_remove.append(category)
-        
-        if categories_to_remove:
-            client.torrents_remove_categories(categories=categories_to_remove)                  
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
