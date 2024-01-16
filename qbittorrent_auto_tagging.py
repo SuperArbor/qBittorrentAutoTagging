@@ -2,22 +2,24 @@ import qbittorrentapi as qbit
 import os, datetime, sys, re, copy
 import yaml 
 
-# 全部tag
-TAGS_ALL = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
 # 合理的文件名分隔符
 SPLITS = ['.', ' ']
 # 压制组前缀
 SPLIT_TEAM = '-'
 EXTENTS = ['.mkv', '.mp4']
-CONTENT_TYPES = ['Movie', 'TV']
 MEDIA_TYPES_MORE = ['BluRay', 'Blu-ray', 'BDRip', 'DVD', 'DVDRip', 'HDDVD', 'HDTV', 'WEB', 'WEB-DL', 'WEBRip']
-MEDIA_TYPES = ['BluRay', 'DVD', 'HDTV', 'WEB']
-PROCESS_TYPES = ['Raw', 'Encode']
-PROCESS_METHODS = ['x264', 'x265', 'H264', 'H265']
-RESOLUTION_TYPES = ['720p', '1080p', '2160p']
 YEAR_MIN = 1900
 YEAR_MAX = datetime.datetime.now().year
 UNKNOWN_TAG = '?'
+
+# 全部tag
+TAGS = {
+    'content': ['Movie', 'TV'],
+    'media': ['BluRay', 'DVD', 'HDTV', 'WEB'],
+    'process_type': ['Raw', 'Encode'],
+    'process_method': ['x264', 'x265', 'H264', 'H265'],
+    'resolution': ['720p', '1080p', '2160p']
+}
 
 def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
     """Decode the torrent name for Movie or TV and returns tags
@@ -77,7 +79,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
                 marked.append(i)
                 break          
         
-    for reso_type in RESOLUTION_TYPES:
+    for reso_type in TAGS['resolution']:
         for i in range(len(groups_lowered)):
             if i in marked:
                 continue
@@ -107,7 +109,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
         
     process_method = ''
     process_type = ''
-    for method in PROCESS_METHODS:
+    for method in TAGS['process_method']:
         for i in range(len(groups_lowered)):
             if i in marked:
                 continue
@@ -156,7 +158,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
 
 def handle_torrent(client, torrent:qbit.TorrentDictionary, 
                     trackers:dict, trackers_to_ignore:list,
-                    tags_prefix:dict, tags_to_record:list, teams:list, 
+                    tags_to_record:dict, teams:list, 
                     overwrite:bool, update_tags:bool) -> tuple[str, dict]:
     """Setting category and tags of a torrent by decoding the torrent name
 
@@ -165,8 +167,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         torrent (qbit.TorrentDictionary): _description_
         trackers (dict): the mapping between categorys and tracker urls
         trackers_to_ignore (list): trackers to ignore
-        tags_prefix (dict): prefixes for specified tag types
-        tags_to_record (list): tag types to record
+        tags_to_record (dict): tag types to record
         teams (list): teams in buffer
         overwrite (bool): overwrite the existing tags when adding new ones
         update_tags (bool): update tags for torrent in the client
@@ -193,15 +194,14 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         # handle tags
         tags = decode_torrent_tags(torrent.name, teams)
         if tags:
-            tags_decorated = copy.copy(tags)
-            for tag_key, tag_value in tags_decorated.items():
-                if tag_key in tags_prefix.keys():
-                    tags_decorated.update({tag_key:f'{tags_prefix[tag_key]}{tag_value}' if tag_value else ''})
+            for tag_type, tag_value in tags.items():
+                if tag_type in tags_to_record.keys():
+                    tags.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})
             if update_tags:
                 if overwrite:
                     client.torrents_remove_tags(torrent_hashes=torrent.hash)
                 # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
-                tags_needed = list({tag: tags_decorated[tag] for tag in tags_to_record if tag in tags_decorated.keys()}.values())
+                tags_needed = list({tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()}.values())
                 client.torrents_add_tags(tags_needed, torrent_hashes=torrent.hash)
                 print(f'tags: {tags_needed}')
         return category, tags    
@@ -219,10 +219,8 @@ def process_new(info_hash:str, config:dict, statistics:dict):
     conn_info = dict(host=host, port=port, username=username, password=password,)
     client = qbit.Client(**conn_info)
 
-    # 在tag前加上前缀以区分不同类型的tag
-    tags_prefix = config['tags_prefix'] or {}
     # 记录的标签
-    tags_to_record = config['tags_to_record'] or []
+    tags_to_record = config['tags_to_record'] or {}
     # 服务器缩写：url关键词，用于创建种子的categories
     trackers = config['trackers'] or []
     # 是否清除已有标签
@@ -249,8 +247,8 @@ def process_new(info_hash:str, config:dict, statistics:dict):
             print(f'Handling torrent {torrent.name}...')
             handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore, 
-                tags_prefix=tags_prefix, tags_to_record=tags_to_record, 
-                teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags)
+                tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
+                overwrite=overwrite, update_tags=update_tags)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -262,10 +260,8 @@ def process_all(config:dict, statistics:dict) -> dict:
     conn_info = dict(host=host, port=port, username=username, password=password,)
     client = qbit.Client(**conn_info)
 
-    # 在tag前加上前缀以区分不同类型的tag
-    tags_prefix = config['tags_prefix'] or {}
     # 记录的标签
-    tags_to_record = config['tags_to_record'] or []
+    tags_to_record = config['tags_to_record'] or {}
     # 服务器缩写：url关键词，用于创建种子的categories
     trackers = config['trackers'] or []
     # 是否清除已有标签
@@ -281,52 +277,28 @@ def process_all(config:dict, statistics:dict) -> dict:
     # 分类统计
     statistics_categories = statistics['CATEGORIES'] or {}
     # 初始化统计数据
-    for tag_type in tags_to_record:
-        match str.lower(tag_type):
-            case 'content':
-                statistics_total.update({tag_type: {t: 0 for t in CONTENT_TYPES}})
-            case 'media':
-                statistics_total.update({tag_type: {t: 0 for t in MEDIA_TYPES}})
-            case 'resolution':
-                statistics_total.update({tag_type: {t: 0 for t in RESOLUTION_TYPES}})
-            case 'team':
-                if statistics_total.get(tag_type):
-                    # teams in statistics are useful
-                    statistics_total.update({tag_type: {t: 0 for t in statistics_total[tag_type].keys()}})
-                else:
-                    statistics_total.update({tag_type: {}})
-            case 'process_type':
-                statistics_total.update({tag_type: {t: 0 for t in PROCESS_TYPES}})
-            case 'process_method':
-                statistics_total.update({tag_type: {t: 0 for t in PROCESS_METHODS}})
-            case 'year':
+    for tag_type in tags_to_record.keys():
+        if tag_type == 'team':
+            if statistics_total.get(tag_type):
+                # teams in statistics are useful
+                statistics_total.update({tag_type: {t: 0 for t in statistics_total[tag_type].keys()}})
+            else:
                 statistics_total.update({tag_type: {}})
-            case _:
-                pass
-                
-    statistics_categories = {category: {} for category in trackers.keys() if category not in trackers_to_ignore}
-    for category in statistics_categories.keys():
-        for tag_type in tags_to_record:
-            match str.lower(tag_type):
-                case 'content':
-                    statistics_categories[category].update({tag_type: {t: 0 for t in CONTENT_TYPES}})
-                case 'media':
-                    statistics_categories[category].update({tag_type: {t: 0 for t in MEDIA_TYPES}})
-                case 'resolution':
-                    statistics_categories[category].update({tag_type: {t: 0 for t in RESOLUTION_TYPES}})
-                case 'team':
-                    if statistics_categories[category].get(tag_type):
-                        statistics_categories[category].update({tag_type: {t: 0 for t in statistics_total[tag_type].keys()}})
-                    else:
-                        statistics_categories[category].update({tag_type: {}})
-                case 'process_type':
-                    statistics_categories[category].update({tag_type: {t: 0 for t in PROCESS_TYPES}})
-                case 'process_method':
-                    statistics_categories[category].update({tag_type: {t: 0 for t in PROCESS_METHODS}})
-                case 'year':
+            
+            for category in statistics_categories.keys():
+                if statistics_categories[category].get(tag_type):
+                    statistics_categories[category].update({tag_type: {t: 0 for t in statistics_total[tag_type].keys()}})
+                else:
                     statistics_categories[category].update({tag_type: {}})
-                case _:
-                    pass
+        elif tag_type == 'year':
+            statistics_total.update({tag_type: {}})   
+            
+            for category in statistics_categories.keys():
+                statistics_categories[category].update({tag_type: {}})
+        else:
+            statistics_total.update({tag_type: {t: 0 for t in TAGS[tag_type]}})
+            for category in statistics_categories.keys():
+                statistics_categories[category].update({tag_type: {t: 0 for t in TAGS[tag_type]}})
             
     try:
         client.auth_log_in()
@@ -345,11 +317,11 @@ def process_all(config:dict, statistics:dict) -> dict:
             print(f'({count} / {total}) Handling torrent {torrent.name}...')
             category, tags = handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
-                tags_prefix=tags_prefix, tags_to_record=tags_to_record, 
-                teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags)
+                tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
+                overwrite=overwrite, update_tags=update_tags)
             if update_statistics and tags:
                 for tag_type in tags.keys():
-                    if not tag_type in tags_to_record:
+                    if not tag_type in tags_to_record.keys():
                         continue
                     tag_entry = tags[tag_type] or UNKNOWN_TAG
                     if tag_entry in statistics_total[tag_type].keys():
@@ -362,6 +334,36 @@ def process_all(config:dict, statistics:dict) -> dict:
                             statistics_categories[category][tag_type][tag_entry] += 1
                         else:
                             statistics_categories[category][tag_type][tag_entry] = 1
+        
+        # remove tags with too few entries
+        tagType_tags = {tag_type:[] for tag_type in tags_to_record.keys()}
+        tag_numbers = {}
+        for tag in client.torrent_tags.tags:
+            torrent_list = client.torrents_info(tag=tag)
+            tag_numbers.update({tag:len(torrent_list)})
+            
+            for tag_type in tagType_tags.keys():
+                if tag in statistics_total[tag_type].keys():
+                    tagType_tags[tag_type].append(tag)
+                    break
+        
+        for tag_type in tagType_tags.keys():
+            tags_of_type = tagType_tags[tag_type]
+            tags_limit_of_type = tags_to_record[tag_type]['max_number']
+            if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
+                tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
+                tags_to_remove = tags_of_type[tags_limit_of_type: -1]
+                client.torrents_delete_tags(tags=tags_to_remove)
+        
+        # remove categories with no entries
+        categories_to_remove = []
+        for category in client.torrent_categories.categories:
+            torrent_list = client.torrents_info(category=category)
+            if len(torrent_list) == 0:
+                categories_to_remove.append(category)
+        
+        if categories_to_remove:
+            client.torrents_remove_categories(categories=categories_to_remove)                  
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -394,8 +396,41 @@ if __name__ == "__main__":
         
         if config['update_statistics']:
             print(f'Updating statistics...')
+            # remove tag types with zero entries
+            statistics_ = {'TOTAL':{}, 'CATEGORIES':{}}
+            for tag_type in statistics['TOTAL'].keys():
+                if statistics['TOTAL'][tag_type].values():
+                    statistics_['TOTAL'][tag_type] = {}
+                    keep_tag_type = False
+                    for tag in statistics['TOTAL'][tag_type].keys():
+                        if statistics['TOTAL'][tag_type][tag] > 0:
+                            statistics_['TOTAL'][tag_type][tag] = statistics['TOTAL'][tag_type][tag]
+                            keep_tag_type = True
+                    if not keep_tag_type:
+                        statistics_['TOTAL'].pop(tag_type)
+            
+            # remove categories with zero entries
+            for category in statistics['CATEGORIES'].keys():
+                keep_category = False           
+                if  statistics['CATEGORIES'][category].values():
+                    statistics_['CATEGORIES'][category] = {}
+                    # remove tag types with zero entries
+                    for tag_type in statistics['CATEGORIES'][category].keys():
+                        if statistics['CATEGORIES'][category][tag_type].values():
+                            statistics_['CATEGORIES'][category][tag_type]= {}
+                            keep_tag_type = False
+                            for tag in statistics['CATEGORIES'][category][tag_type].keys():
+                                if statistics['CATEGORIES'][category][tag_type][tag] > 0:
+                                    statistics_['CATEGORIES'][category][tag_type][tag] = statistics['CATEGORIES'][category][tag_type][tag]
+                                    keep_tag_type = True
+                                    keep_category = True
+                            if not keep_tag_type:
+                                statistics_['CATEGORIES'][category].pop(tag_type)
+                if not keep_category:
+                    statistics_['CATEGORIES'].pop(category)
+            
             with open(path_statistics, 'w', encoding='utf-8') as f:
-                yaml.dump(statistics, f)
+                yaml.dump(statistics_, f)
     else:
         info_hash = sys.argv[1]
         print(f'Running process_new function with update_tags {"on" if config["update_tags"] else "off"}')

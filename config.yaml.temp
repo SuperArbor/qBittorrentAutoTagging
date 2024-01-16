@@ -5,28 +5,39 @@ port: 8080
 username: admin
 password: admin
 # 创建新的tag时是否清除已有标签
-overwrite: false
+overwrite: true
 # 是否更新statistics中的统计数据
 update_statistics: true
 # 是否更新客户端中的标签
 update_tags: true
-# 在tag前加上前缀以区分不同类型的tag
-tags_prefix:
-  content: '#'
-  media: '$'
-  team: '-'
 # 记录的标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
 tags_to_record:
-  - content
-  - media
-  - resolution
-  - team
+  content:              # Movie, TV
+    prefix: '#'
+    max_number: -1
+  media:                # BluRay, DVD, HDTV, WEB
+    prefix: '$'
+    max_number: -1
+  resolution:           # 720p, 1080p, 2160p 
+    prefix: ''
+    max_number: -1
+  team:                 # Author of the Encode
+    prefix: '-'
+    max_number: 3
+  process_type:         # Encode, Raw
+    prefix: '~'
+    max_number: -1
+  process_method:       # H264/H265, x264/x265
+    prefix: ''
+    max_number: -1
+  year:                 # year when the workpiece was produced
+    prefix: ''
+    max_number: 3
 # tracker缩写与url关键词的映射关系，用于创建种子的categories
 trackers:
   NHD: nexushd
   PuTao: sjtu
-  U2: dmhy
 # 从上一个条目的keys中选择需要过滤的trackers，如果留白，则全部处理
 trackers_to_ignore:
-  - U2
   - NHD
+  
