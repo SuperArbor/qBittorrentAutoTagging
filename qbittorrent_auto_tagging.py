@@ -154,7 +154,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
     
     return tags
 
-def handle_torrrent(client, torrent:qbit.TorrentDictionary, 
+def handle_torrent(client, torrent:qbit.TorrentDictionary, 
                     trackers:dict, trackers_to_ignore:list,
                     tags_prefix:dict, tags_to_record:list, teams:list, 
                     overwrite:bool, update_tags:bool) -> tuple[str, dict]:
@@ -186,7 +186,7 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
             
     if (not trackers_to_ignore) or (category not in trackers_to_ignore):
         # handle category
-        if category and update_tags:
+        if category:
             client.torrents_set_category(category, torrent_hashes=torrent.hash)
             print(f'category: {category}') 
         
@@ -247,7 +247,7 @@ def process_new(info_hash:str, config:dict, statistics:dict):
         else:
             torrent = torrent_list[0]
             print(f'Handling torrent {torrent.name}...')
-            handle_torrrent(
+            handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore, 
                 tags_prefix=tags_prefix, tags_to_record=tags_to_record, 
                 teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags)
@@ -343,7 +343,7 @@ def process_all(config:dict, statistics:dict) -> dict:
         for torrent in torrent_list:
             count += 1
             print(f'({count} / {total}) Handling torrent {torrent.name}...')
-            category, tags = handle_torrrent(
+            category, tags = handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
                 tags_prefix=tags_prefix, tags_to_record=tags_to_record, 
                 teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags)
