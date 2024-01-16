@@ -15,10 +15,10 @@ UNKNOWN_TAG = '?'
 # 全部tag
 TAGS = {
     'content': ['Movie', 'TV'],
-    'media': ['BluRay', 'DVD', 'HDTV', 'WEB'],
-    'process_type': ['Raw', 'Encode'],
-    'process_method': ['x264', 'x265', 'H264', 'H265'],
-    'resolution': ['720p', '1080p', '2160p']
+    'media': ['BluRay', 'WEB', 'DVD', 'HDTV'],
+    'process_type': ['Encode', 'Raw'],
+    'process_method': ['x264', 'x265', 'H.264', 'H.265', 'XviD', 'DivX', 'MPEG-2'],
+    'resolution': ['1080', '2160', '720']
 }
 
 def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
@@ -83,8 +83,8 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
         for i in range(len(groups_lowered)):
             if i in marked:
                 continue
-            if str.lower(reso_type) == groups_lowered[i]:
-                resolution = reso_type
+            if re.match(reso_type + r'[pi]', groups_lowered[i]):
+                resolution = groups_lowered[i]
                 marked.append(i)
                 break
         if resolution:
@@ -109,19 +109,37 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
         
     process_method = ''
     process_type = ''
-    for method in TAGS['process_method']:
-        for i in range(len(groups_lowered)):
-            if i in marked:
-                continue
-            if str.lower(method) == groups_lowered[i]:  
-                process_method = method
-                if method.startswith('x26'):
-                    process_type = 'Encode'
-                elif method.startswith('H26'):
-                    process_type = 'Raw'
-                marked.append(i)
-                break
-        if process_method:
+    for i in range(len(groups_lowered)):
+        if i in marked:
+            continue
+        mat = re.match(r'(x26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
+        if mat:
+            r = str.lower(mat.string)
+            if r.startswith('x26'):
+                process_method = r
+                process_type = 'Encode'
+            elif r.startswith('h26') or r.startswith('h.26'):
+                process_method = str.upper(r)
+                process_type = 'Raw'
+            elif r == 'avc':
+                process_method = 'H.264'
+                process_type = 'Raw'
+            elif r == 'hevc':
+                process_method = 'H.265'
+                process_type = 'Raw'
+            elif r == 'xvid':
+                process_method = 'XviD'
+                process_type = 'Encode'
+            elif r == 'divx':
+                process_method = 'DivX'
+                process_type = 'Encode'
+            elif r == 'mpeg-2':
+                process_method = 'MPEG-2'
+                process_type = 'Raw'
+            else:
+                process_method = r
+                process_type = 'Encode'
+            marked.append(i)
             break
     
     year = ''
