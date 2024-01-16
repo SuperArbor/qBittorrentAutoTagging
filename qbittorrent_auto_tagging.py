@@ -326,7 +326,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 overwrite=overwrite, update_tags=update_tags, delay_operation=True)
             torrent_category.update({torrent.hash: category})
             # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
-            tags_needed = list({tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()}.values()) if tags else []
+            tags_needed = list({tag_type: tags[tag_type] for tag_type in tags_to_record.keys() if tag_type in tags.keys()}.values()) if tags else []
             torrent_tags.update({torrent.hash: tags_needed})
             if update_statistics and tags:
                 for tag_type in tags.keys():
@@ -349,7 +349,7 @@ def process_all(config:dict, statistics:dict) -> dict:
         if update_tags:
             print(f'Updating tags...')
             # remove tags with too few entries
-            tagType_tags = {tag_type:[] for tag_type in tags_to_record.keys()}
+            tagType_tags = {tag_type:set() for tag_type in tags_to_record.keys()}
             tag_numbers = {}
             tags_to_remove = []
             for t_tags in torrent_tags.values():
@@ -357,11 +357,11 @@ def process_all(config:dict, statistics:dict) -> dict:
                     tag_numbers[tag] = 1 if tag not in tag_numbers.keys() else tag_numbers[tag] + 1
                     for tag_type in tagType_tags.keys():
                         if tag in statistics_total[tag_type].keys():
-                            tagType_tags[tag_type].append(tag)
+                            tagType_tags[tag_type].add(tag)
                             break
             
             for tag_type in tagType_tags.keys():
-                tags_of_type = tagType_tags[tag_type]
+                tags_of_type = list(tagType_tags[tag_type])
                 tags_limit_of_type = tags_to_record[tag_type]['max_number']
                 if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
                     tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
@@ -371,8 +371,8 @@ def process_all(config:dict, statistics:dict) -> dict:
             total = len(torrent_tags)
             for t_hash, t_tags in torrent_tags.items():
                 count += 1
-                print(f'({count} / {total}) Tagging torrent {torrent.name}...')
                 torrent = client.torrents_info(torrent_hashes=t_hash)[0]
+                print(f'({count} / {total}) Tagging torrent {torrent.name}...')
                 t_tags = [t for t in t_tags if t not in tags_to_remove]
                 if overwrite:
                     torrent.remove_tags()
