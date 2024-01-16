@@ -326,7 +326,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 overwrite=overwrite, update_tags=update_tags, delay_operation=True)
             torrent_category.update({torrent.hash: category})
             # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
-            tags_needed = list({tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()}.values())
+            tags_needed = list({tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()}.values()) if tags else []
             torrent_tags.update({torrent.hash: tags_needed})
             if update_statistics and tags:
                 for tag_type in tags.keys():
