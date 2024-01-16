@@ -65,6 +65,86 @@ trackers_to_ignore:
 
 在设置了config.yaml的基础上，直接运行qbittorrent_auto_tagging.py文件即可（实际调用脚本中的process_all()方法）。
 
+在这个情况下，还可以通过设置update_statistics开启数据统计，结果记录在statistics.yaml中，包括分类统计(CATEGORIES)和全局统计(TOTAL)两部分，格式如下（不被识别的tag标记为"?"）
+
+```yaml
+CATEGORIES:
+  NHD:
+    content:
+      '?': 12
+      Movie: 1075
+      TV: 100
+    media:
+      '?': 5
+      BluRay: 1030
+      DVD: 3
+      HDTV: 0
+      WEB: 137
+    resolution:
+      1080p: 1056
+      2160p: 9
+      720p: 103
+      '?': 7
+    team:
+      0LED: 1
+      '147': 2
+      7SinS: 1
+      '?': 11
+      A: 1
+      ADE: 2
+      ADWeb: 3
+      AREY: 4
+      ARiN: 3
+      ...
+  PuTao:
+    content:
+      '?': 3
+      Movie: 330
+      TV: 17
+    media:
+      '?': 2
+      BluRay: 313
+      DVD: 0
+      HDTV: 0
+      WEB: 32
+    resolution:
+      1080p: 329
+      2160p: 0
+      720p: 18
+    team:
+      '?': 3
+      A: 1
+      ADE: 1
+      AREY: 1
+      BMF: 8
+      CALiGARi: 1
+      ...
+TOTAL:
+  content:
+    '?': 375
+    Movie: 4736
+    TV: 228
+  media:
+    '?': 21
+    BluRay: 4638
+    DVD: 9
+    HDTV: 1
+    WEB: 295
+  resolution:
+    1080p: 4601
+    2160p: 24
+    720p: 326
+    '?': 13
+  team:
+    0LED: 5
+    '147': 5
+    7SinS: 1
+    '?': 34
+    A: 6
+    ADE: 6
+    ...
+```
+
 #### 识别新添加的种子
 
 在设置了config.yaml的基础上，勾选qBittorrent设置 > 下载 > 运行外部程序 > 新增Torrent时运行，在添加新下载任务后，自动触发调用脚本中的process_new()方法。在该设置UI处，填写命令行指令
