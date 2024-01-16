@@ -319,7 +319,7 @@ def process_all(config:dict, statistics:dict) -> dict:
         torrent_tags = {}
         for torrent in torrent_list:
             count += 1
-            print(f'({count} / {total}) Handling torrent {torrent.name}...')
+            print(f'({count} / {total}) [Delayed] Handling torrent {torrent.name}...')
             category, tags = handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
                 tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
@@ -347,6 +347,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                             statistics_categories[category][tag_type][tag_entry] = 1
         
         if update_tags:
+            print(f'Updating tags...')
             # remove tags with too few entries
             tagType_tags = {tag_type:[] for tag_type in tags_to_record.keys()}
             tag_numbers = {}
@@ -365,14 +366,18 @@ def process_all(config:dict, statistics:dict) -> dict:
                 if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
                     tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
                     tags_to_remove.extend(tags_of_type[tags_limit_of_type: -1])
-                
+            
+            count = 0
+            total = len(torrent_tags)
             for t_hash, t_tags in torrent_tags.items():
+                count += 1
+                print(f'({count} / {total}) Tagging torrent {torrent.name}...')
                 torrent = client.torrents_info(torrent_hashes=t_hash)[0]
                 t_tags = [t for t in t_tags if t not in tags_to_remove]
                 if overwrite:
                     torrent.remove_tags()
                 torrent.add_tags(t_tags)
-                print(f'tags: {tags_needed} for torrent {torrent.name}')
+                print(f'tags: {tags_needed}')
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
