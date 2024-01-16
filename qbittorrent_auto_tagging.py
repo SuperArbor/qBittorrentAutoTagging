@@ -159,7 +159,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
 def handle_torrent(client, torrent:qbit.TorrentDictionary, 
                     trackers:dict, trackers_to_ignore:list,
                     tags_to_record:dict, teams:list, 
-                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[str, dict]:
+                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[str, dict, dict]:
     """Setting category and tags of a torrent by decoding the torrent name
 
     Args:
@@ -174,7 +174,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         delay_operation (bool): delay tagging operation, only return category and tags
 
     Returns:
-        tuple[str, dict]: the category and the tags
+        tuple[str, dict]: the category, the tags and the tags to be shown in the client UI (with prefixes)
     """
     # get category
     category = ''
@@ -197,21 +197,22 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         
         # handle tags
         tags = decode_torrent_tags(torrent.name, teams)
+        tags = {tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()} if tags else tags
         if tags:
-            for tag_type, tag_value in tags.items():
+            tags_UI = copy.copy(tags)
+            for tag_type, tag_value in tags_UI.items():
                 if tag_type in tags_to_record.keys():
-                    tags.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})
+                    tags_UI.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})            
             if update_tags and not delay_operation:
                 if overwrite:
                     client.torrents_remove_tags(torrent_hashes=torrent.hash)
                 # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
-                tags_needed = list({tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()}.values())
-                client.torrents_add_tags(tags_needed, torrent_hashes=torrent.hash)
-                print(f'tags: {tags_needed}')
-        return category, tags    
-    else:
-        print(f'Category {category} in trackers_to_ignore list, skipping tagging for the torrent')
-        return category, None
+                client.torrents_add_tags(list(tags_UI.values()), torrent_hashes=torrent.hash)
+                print(f'tags: {list(tags_UI.values())}')
+                
+            return category, tags, tags_UI
+           
+    return category, None, None
 
 def process_new(info_hash:str, config:dict, statistics:dict):
     """Process a new torrent with its info hash 
@@ -320,15 +321,15 @@ def process_all(config:dict, statistics:dict) -> dict:
         for torrent in torrent_list:
             count += 1
             print(f'({count} / {total}) [Delayed] Handling torrent {torrent.name}...')
-            category, tags = handle_torrent(
+            category, tags, tags_UI = handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
                 tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
                 overwrite=overwrite, update_tags=update_tags, delay_operation=True)
             torrent_category.update({torrent.hash: category})
-            # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
-            tags_needed = list({tag_type: tags[tag_type] for tag_type in tags_to_record.keys() if tag_type in tags.keys()}.values()) if tags else []
-            torrent_tags.update({torrent.hash: tags_needed})
+            # torrent_tags is used to update client UI, so tags_UI is passed in
+            torrent_tags.update({torrent.hash: list(tags_UI.values())})
             if update_statistics and tags:
+                # store unprefixed tags in statistics
                 for tag_type in tags.keys():
                     
                     if not tag_type in tags_to_record.keys():
