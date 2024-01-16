@@ -299,6 +299,14 @@ def process_all(config:dict, statistics:dict) -> dict:
             statistics_total.update({tag_type: {t: 0 for t in TAGS[tag_type]}})
             for category in statistics_categories.keys():
                 statistics_categories[category].update({tag_type: {t: 0 for t in TAGS[tag_type]}})
+    
+    for tag_type in statistics_total.keys():
+        if (tag_type not in tags_to_record.keys()) and tag_type != 'team':
+            statistics_total[tag_type] = {}        
+    for category in statistics_categories.keys():
+        for tag_type in statistics_categories[category].keys():
+            if (tag_type not in tags_to_record.keys()) and tag_type != 'team':
+                statistics_categories[category][tag_type] = {}
             
     try:
         client.auth_log_in()
