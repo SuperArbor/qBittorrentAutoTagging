@@ -155,7 +155,8 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
 
 def handle_torrrent(client, torrent:qbit.TorrentDictionary, 
                     trackers:dict, trackers_to_ignore:list,
-                    tags_prefix:dict, tags_to_record:list, teams:list, overwrite:bool) -> tuple[str, dict]:
+                    tags_prefix:dict, tags_to_record:list, teams:list, 
+                    overwrite:bool, update_tags:bool) -> tuple[str, dict]:
     """Setting category and tags of a torrent by decoding the torrent name
 
     Args:
@@ -167,6 +168,7 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
         tags_to_record (list): tag types to record
         teams (list): teams in buffer
         overwrite (bool): overwrite the existing tags when adding new ones
+        update_tags (bool): update tags for torrent in the client
 
     Returns:
         tuple[str, dict]: the category and the tags
@@ -183,7 +185,7 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
             
     if (not trackers_to_ignore) or (category not in trackers_to_ignore):
         # handle category
-        if category:
+        if category and update_tags:
             client.torrents_set_category(category, torrent_hashes=torrent.hash)
             print(f'category: {category}') 
         
@@ -194,11 +196,12 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
             for tag_key, tag_value in tags_decorated.items():
                 if tag_key in tags_prefix.keys():
                     tags_decorated.update({tag_key:f'{tags_prefix[tag_key]}{tag_value}' if tag_value else ''})
-            if overwrite:
-                client.torrents_remove_tags(torrent_hashes=torrent.hash)
-            tags_needed = list({label: tags_decorated[label] for label in tags_to_record}.values())
-            client.torrents_add_tags(tags_needed, torrent_hashes=torrent.hash)
-            print(f'tags: {tags_needed}')
+            if update_tags:
+                if overwrite:
+                    client.torrents_remove_tags(torrent_hashes=torrent.hash)
+                tags_needed = list({label: tags_decorated[label] for label in tags_to_record}.values())
+                client.torrents_add_tags(tags_needed, torrent_hashes=torrent.hash)
+                print(f'tags: {tags_needed}')
         return category, tags    
     else:
         print(f'Category {category} in trackers_to_ignore list, skipping tagging for the torrent')
@@ -222,6 +225,8 @@ def process_new(info_hash:str, config:dict, statistics:dict):
     trackers = config['trackers'] or []
     # 是否清除已有标签
     overwrite = config['overwrite'] or False
+    # 是否更新客户端中的标签
+    update_tags = config['update_tags'] or False
     # 需要过滤的trackers
     trackers_to_ignore = config['trackers_to_ignore'] or []
     # 全局统计
@@ -243,7 +248,7 @@ def process_new(info_hash:str, config:dict, statistics:dict):
             handle_torrrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore, 
                 tags_prefix=tags_prefix, tags_to_record=tags_to_record, 
-                teams=list(statistics_total['team'].keys()), overwrite=overwrite)
+                teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -263,6 +268,10 @@ def process_all(config:dict, statistics:dict) -> dict:
     trackers = config['trackers'] or []
     # 是否清除已有标签
     overwrite = config['overwrite'] or False
+    # 是否更新statistics中的统计数据
+    update_statistics = config['update_statistics'] or False
+    # 是否更新客户端中的标签
+    update_tags = config['update_tags'] or False
     # 需要过滤的trackers
     trackers_to_ignore = config['trackers_to_ignore'] or []
     # 全局统计
@@ -330,28 +339,21 @@ def process_all(config:dict, statistics:dict) -> dict:
             category, tags = handle_torrrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
                 tags_prefix=tags_prefix, tags_to_record=tags_to_record, 
-                teams=list(statistics_total['team'].keys()), overwrite=overwrite)
-            if tags:
+                teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags)
+            if update_statistics and tags:
                 for tag_type in tags.keys():
                     if not tag_type in tags_to_record:
                         continue
-                    if tag_type != 'team':
-                        # tag type team is special in that the types are not determined
-                        statistics_total[tag_type].update(
-                            {tags[tag_type]: statistics_total[tag_type][tags[tag_type]] + 1})       
-                        statistics_categories[category][tag_type].update(
-                            {tags[tag_type]: statistics_categories[category][tag_type][tags[tag_type]] + 1})       
+                    tag_entry = tags[tag_type] or '?'
+                    if tag_entry in statistics_total[tag_type].keys():
+                        statistics_total[tag_type][tag_entry] += 1
                     else:
-                        team = tags[tag_type] or '?'
-                        if team in statistics_total[tag_type].keys():
-                            statistics_total[tag_type][team] += 1
-                        else:
-                            statistics_total[tag_type][team] = 1
-                        
-                        if team in statistics_categories[category][tag_type].keys():
-                            statistics_categories[category][tag_type][team] += 1
-                        else:
-                            statistics_categories[category][tag_type][team] = 1
+                        statistics_total[tag_type][tag_entry] = 1
+                    
+                    if tag_entry in statistics_categories[category][tag_type].keys():
+                        statistics_categories[category][tag_type][tag_entry] += 1
+                    else:
+                        statistics_categories[category][tag_type][tag_entry] = 1
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -378,12 +380,16 @@ if __name__ == "__main__":
         statistics = yaml.load(f, Loader=yaml.Loader)
         
     if len(sys.argv) == 1:
+        print(f'Running process_all function with update_tags {"on" if config["update_tags"] else "off"} and update_statistics {"on" if config["update_statistics"] else "off"}')
         print(f'Handling all torrents...')
         statistics = process_all(config, statistics)
-        print(f'Updating statics...')
-        with open(path_statistics, 'w', encoding='utf-8') as f:
-            yaml.dump(statistics, f)
+        
+        if config['update_statistics']:
+            print(f'Updating statistics...')
+            with open(path_statistics, 'w', encoding='utf-8') as f:
+                yaml.dump(statistics, f)
     else:
         info_hash = sys.argv[1]
+        print(f'Running process_new function with update_tags {"on" if config["update_tags"] else "off"}')
         process_new(info_hash, config, statistics)
                

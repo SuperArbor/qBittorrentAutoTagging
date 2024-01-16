@@ -6,6 +6,10 @@ username: admin
 password: admin
 # 创建新的tag时是否清除已有标签
 overwrite: false
+# 是否更新statistics中的统计数据
+update_statistics: true
+# 是否更新客户端中的标签
+update_tags: true
 # 在tag前加上前缀以区分不同类型的tag
 tags_prefix:
   content: '#'
