@@ -3,9 +3,9 @@ import os, datetime, sys, re, copy
 import yaml 
 
 # 合理的文件名分隔符
-SPLITS = ['.', ' ']
+SPLITTERS = ['.', ' ']
 # 压制组前缀
-SPLIT_TEAM = '-'
+SPLITTER_TEAM = '-'
 EXTENTS = ['.mkv', '.mp4']
 MEDIA_TYPES_MORE = ['BluRay', 'Blu-ray', 'BDRip', 'DVD', 'DVDRip', 'HDDVD', 'HDTV', 'WEB', 'WEB-DL', 'WEBRip']
 YEAR_MIN = 1900
@@ -36,7 +36,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
         torrent_name = root
     split = ''
     groups = []
-    for s in SPLITS:
+    for s in SPLITTERS:
         groups = torrent_name.split(s)
         if len(groups) >= 3:
             split = s
@@ -94,7 +94,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
         return {'content': ''}
     
     last_item = groups.pop()
-    last_items = last_item.split(SPLIT_TEAM)
+    last_items = last_item.split(SPLITTER_TEAM)
     team = ''
     groups.extend(last_items)
     groups_lowered = [str.lower(group) for group in groups]
@@ -174,7 +174,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         delay_operation (bool): delay tagging operation, only return category and tags
 
     Returns:
-        tuple[str, dict]: the category, the tags and the tags to be shown in the client UI (with prefixes)
+        tuple[str, dict, dict]: the category, the tags and the tags to be shown in the client UI (with prefixes)
     """
     # get category
     category = ''
@@ -256,6 +256,13 @@ def process_new(info_hash:str, config:dict, statistics:dict):
 
 def process_all(config:dict, statistics:dict) -> dict:
     """Process all the torrents in a client
+
+    Args:
+        config (dict): configuration
+        statistics (dict): statistics read from a file
+
+    Returns:
+        dict: the updated statistics
     """
     host, port, username, password = config['host'], config['port'], config['username'], config['password']
     conn_info = dict(host=host, port=port, username=username, password=password,)
@@ -301,6 +308,7 @@ def process_all(config:dict, statistics:dict) -> dict:
             for category in statistics_categories.keys():
                 statistics_categories[category].update({tag_type: {t: 0 for t in TAGS[tag_type]}})
     
+    # 清除文件中的陈旧标签
     for tag_type in statistics_total.keys():
         if (tag_type not in tags_to_record.keys()) and tag_type != 'team':
             statistics_total[tag_type] = {}        
@@ -308,7 +316,18 @@ def process_all(config:dict, statistics:dict) -> dict:
         for tag_type in statistics_categories[category].keys():
             if (tag_type not in tags_to_record.keys()) and tag_type != 'team':
                 statistics_categories[category][tag_type] = {}
-            
+    
+    # tags_to_record中存在任意标签类型需要限制标签显示数目时，采用delay_operation
+    delay_operation = False
+    for tag_type in tags_to_record.keys():
+        if tags_to_record[tag_type]['max_number'] > 0:
+            delay_operation = True
+            break       
+    if delay_operation:
+        print(f'Running with delay operation mode')
+    else:
+        print(f'Running without delay operation mode')
+        
     try:
         client.auth_log_in()
         print(f'Fetching all the torrents from the client...')        
@@ -316,7 +335,6 @@ def process_all(config:dict, statistics:dict) -> dict:
         total = len(torrent_list)
         print(f'Done. {total} torrents to process.')        
         count = 0
-        torrent_category = {}
         torrent_tags = {}
         for torrent in torrent_list:
             count += 1
@@ -324,10 +342,10 @@ def process_all(config:dict, statistics:dict) -> dict:
             category, tags, tags_UI = handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
                 tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
-                overwrite=overwrite, update_tags=update_tags, delay_operation=True)
-            torrent_category.update({torrent.hash: category})
+                overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
             # torrent_tags is used to update client UI, so tags_UI is passed in
-            torrent_tags.update({torrent.hash: list(tags_UI.values()) if tags_UI else []})
+            if delay_operation:
+                torrent_tags.update({torrent.hash: list(tags_UI.values()) if tags_UI else []})
             if update_statistics and tags:
                 # store unprefixed tags in statistics
                 for tag_type in tags.keys():
@@ -349,45 +367,46 @@ def process_all(config:dict, statistics:dict) -> dict:
                             statistics_categories[category][tag_type][tag_value] = 1
         
         if update_tags:
-            print(f'Updating tags...')
-            # remove tags with too few entries
-            # stores tag type - tag list pairs such as {'media': ['BluRay', 'DVD', 'WEB']}
-            tagType_tags = {tag_type:set() for tag_type in tags_to_record.keys()}
-            # stores tag - number pairs where the number is the torrent number with the tag, such as {‘#Movie’: 2011}
-            tag_numbers = {}
-            # stores tags that should be removed
-            tags_to_remove = []
-            for t_tags in torrent_tags.values():
-                # obtain tagType_tags and tag_numbers in this loop
-                for tag in t_tags:
-                    tag_numbers[tag] = 1 if tag not in tag_numbers.keys() else tag_numbers[tag] + 1
-                    for tag_type in tagType_tags.keys():
-                        if tag in statistics_total[tag_type].keys():
-                            tagType_tags[tag_type].add(tag)
-                            break
-            
-            for tag_type in tagType_tags.keys():
-                # obtain tags_to_remove list
-                tags_of_type = list(tagType_tags[tag_type])
-                tags_limit_of_type = tags_to_record[tag_type]['max_number']
-                if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
-                    tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
-                    tags_to_remove.extend(tags_of_type[tags_limit_of_type: -1])
-            
-            count = 0
-            total = len(torrent_tags)
-            for t_hash, t_tags in torrent_tags.items():
-                count += 1
-                torrent = client.torrents_info(torrent_hashes=t_hash)[0]
-                print(f'({count} / {total}) Tagging torrent {torrent.name}...')
-                t_tags = [t for t in t_tags if t not in tags_to_remove]
-                if t_tags:
+            if delay_operation:
+                print(f'Delay operation starts: updating tags...')
+                # remove tags with too few entries
+                # stores tag type - tag list pairs such as {'media': ['BluRay', 'DVD', 'WEB']}
+                tagType_tags = {tag_type:set() for tag_type in tags_to_record.keys()}
+                # stores tag - number pairs where the number is the torrent number with the tag, such as {‘#Movie’: 2011}
+                tag_numbers = {}
+                # stores tags that should be removed
+                tags_to_remove = []
+                for t_tags in torrent_tags.values():
+                    # obtain tagType_tags and tag_numbers in this loop
+                    for tag in t_tags:
+                        tag_numbers[tag] = 1 if tag not in tag_numbers.keys() else tag_numbers[tag] + 1
+                        for tag_type in tagType_tags.keys():
+                            if tag in statistics_total[tag_type].keys():
+                                tagType_tags[tag_type].add(tag)
+                                break
+                
+                for tag_type in tagType_tags.keys():
+                    # obtain tags_to_remove list
+                    tags_of_type = list(tagType_tags[tag_type])
+                    tags_limit_of_type = tags_to_record[tag_type]['max_number']
+                    if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
+                        tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
+                        tags_to_remove.extend(tags_of_type[tags_limit_of_type: -1])
+                
+                count = 0
+                total = len(torrent_tags)
+                for t_hash, t_tags in torrent_tags.items():
+                    count += 1
+                    torrent = client.torrents_info(torrent_hashes=t_hash)[0]
+                    print(f'({count} / {total}) Tagging torrent {torrent.name}...')
+                    t_tags = [t for t in t_tags if t not in tags_to_remove]
                     if overwrite:
                         torrent.remove_tags()
-                    torrent.add_tags(t_tags)
-                    print(f'tags: {t_tags}')
+                    if t_tags:
+                        torrent.add_tags(t_tags)
+                        print(f'tags: {t_tags}')
             
-            # remove unneeded tags (those used by no torrents)
+            print(f'Remove unneeded tags (those used by no torrents)..')
             tags_to_delete = []
             for tag in client.torrent_tags.tags:
                 torrent_list = client.torrents_info(tag=tag)
