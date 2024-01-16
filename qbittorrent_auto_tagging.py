@@ -230,7 +230,7 @@ def process_new(info_hash:str, config:dict, statistics:dict):
     # 需要过滤的trackers
     trackers_to_ignore = config['trackers_to_ignore'] or []
     # 全局统计
-    statistics_total = statistics['TOTAL'] or {}
+    statistics_total = statistics['TOTAL'] or {'team':{}}
     try:
         client.auth_log_in()
         categories_exist = client.torrent_categories.categories
