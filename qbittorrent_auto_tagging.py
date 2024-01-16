@@ -17,6 +17,7 @@ PROCESS_METHODS = ['x264', 'x265', 'H264', 'H265']
 RESOLUTION_TYPES = ['720p', '1080p', '2160p']
 YEAR_MIN = 1900
 YEAR_MAX = datetime.datetime.now().year
+UNKNOWN_TAG = '?'
 
 def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
     """Decode the torrent name for Movie or TV and returns tags
@@ -39,7 +40,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
             split = s
             break
     if not split:
-        return None
+        return {'content': ''}
     
     media = ''
     resolution = ''
@@ -88,7 +89,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
             break
         
     if (not media) and (not resolution):
-        return None
+        return {'content': ''}
     
     last_item = groups.pop()
     last_items = last_item.split(SPLIT_TEAM)
@@ -199,7 +200,8 @@ def handle_torrrent(client, torrent:qbit.TorrentDictionary,
             if update_tags:
                 if overwrite:
                     client.torrents_remove_tags(torrent_hashes=torrent.hash)
-                tags_needed = list({label: tags_decorated[label] for label in tags_to_record}.values())
+                # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
+                tags_needed = list({tag: tags_decorated[tag] for tag in tags_to_record if tag in tags_decorated.keys()}.values())
                 client.torrents_add_tags(tags_needed, torrent_hashes=torrent.hash)
                 print(f'tags: {tags_needed}')
         return category, tags    
@@ -344,7 +346,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 for tag_type in tags.keys():
                     if not tag_type in tags_to_record:
                         continue
-                    tag_entry = tags[tag_type] or '?'
+                    tag_entry = tags[tag_type] or UNKNOWN_TAG
                     if tag_entry in statistics_total[tag_type].keys():
                         statistics_total[tag_type][tag_entry] += 1
                     else:
