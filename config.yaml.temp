@@ -15,7 +15,7 @@ tags_prefix:
   content: '#'
   media: '$'
   team: '-'
-# 记录的标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+# 记录的标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
 tags_to_record:
   - content
   - media

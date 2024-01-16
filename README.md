@@ -37,12 +37,15 @@ tags_prefix:
   content: '#'
   media: '$'
   team: '-'
-# 记录的标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+# 记录的标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
 tags_to_record:
-  - content
-  - media
-  - resolution
-  - team
+  - content           # Movie, TV
+  - media             # BluRay, DVD, HDTV, WEB
+  - year              # year when the workpiece was produced
+  - resolution        # 720p, 1080p, 2160p
+  - process_method    # H264/H265, x264/x265
+  - process_type      # Encode, Raw
+  - team              # Author of the Encode
 # tracker缩写与url关键词的映射关系，用于创建种子的categories
 trackers:
   NHD: nexushd

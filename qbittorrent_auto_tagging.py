@@ -291,6 +291,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 statistics_total.update({tag_type: {t: 0 for t in RESOLUTION_TYPES}})
             case 'team':
                 if statistics_total.get(tag_type):
+                    # teams in statistics are useful
                     statistics_total.update({tag_type: {t: 0 for t in statistics_total[tag_type].keys()}})
                 else:
                     statistics_total.update({tag_type: {}})
@@ -298,6 +299,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                 statistics_total.update({tag_type: {t: 0 for t in PROCESS_TYPES}})
             case 'process_method':
                 statistics_total.update({tag_type: {t: 0 for t in PROCESS_METHODS}})
+            case 'year':
+                statistics_total.update({tag_type: {}})
             case _:
                 pass
                 
@@ -320,6 +323,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                     statistics_categories[category].update({tag_type: {t: 0 for t in PROCESS_TYPES}})
                 case 'process_method':
                     statistics_categories[category].update({tag_type: {t: 0 for t in PROCESS_METHODS}})
+                case 'year':
+                    statistics_categories[category].update({tag_type: {}})
                 case _:
                     pass
             
