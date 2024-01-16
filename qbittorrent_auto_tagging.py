@@ -212,7 +212,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
                 
             return category, tags, tags_UI
            
-    return category, None, None
+    return category, {}, {}
 
 def process_new(info_hash:str, config:dict, statistics:dict):
     """Process a new torrent with its info hash 
@@ -327,7 +327,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 overwrite=overwrite, update_tags=update_tags, delay_operation=True)
             torrent_category.update({torrent.hash: category})
             # torrent_tags is used to update client UI, so tags_UI is passed in
-            torrent_tags.update({torrent.hash: list(tags_UI.values())})
+            torrent_tags.update({torrent.hash: list(tags_UI.values()) if tags_UI else []})
             if update_statistics and tags:
                 # store unprefixed tags in statistics
                 for tag_type in tags.keys():
