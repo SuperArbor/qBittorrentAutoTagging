@@ -2,7 +2,7 @@
 
 ## 相关说明
 
-* 脚本功能：自动对qBittorrent中的torrent设置标签（按照内容、媒介、分辨率、压制组等）。
+* 脚本功能：(1)自动对qBittorrent中的torrent设置标签（按照内容、媒介、分辨率、压制组等）;(2)运行全局任务后，根据分类和标签对torrent进行统计（在statistics.yaml中查看结果）。
 * 脚本中针对tagging的功能对qBittorrent版本有要求，估计至少在4.2以上。而“新增Torrent时运行”选项只在qBittorrent4.6以上版本中有，在较早版本中只有“Torrent完成时运行”选项。
 * 仅测试过Windows10，其他操作系统请自行测试。
 * 如果你原本就用到了qBittorrent的tagging系统，请谨慎使用该脚本，以免覆盖原有标签。作者不对任何后果负责。
@@ -43,8 +43,10 @@ tags_to_record:
 trackers:
   NHD: nexushd
   PuTao: sjtu
-# 从上一个条目的keys中选择需要打标的trackers，如果留白，则全部处理
-trackers_for_tagging:
+  U2: dmhy
+# 从上一个条目的keys中选择需要过滤的trackers，如果留白，则全部处理
+trackers_to_ignore:
+  - U2
   - NHD
 ```
 
