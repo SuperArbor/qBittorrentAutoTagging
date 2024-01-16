@@ -350,10 +350,11 @@ def process_all(config:dict, statistics:dict) -> dict:
                     else:
                         statistics_total[tag_type][tag_entry] = 1
                     
-                    if tag_entry in statistics_categories[category][tag_type].keys():
-                        statistics_categories[category][tag_type][tag_entry] += 1
-                    else:
-                        statistics_categories[category][tag_type][tag_entry] = 1
+                    if category:
+                        if tag_entry in statistics_categories[category][tag_type].keys():
+                            statistics_categories[category][tag_type][tag_entry] += 1
+                        else:
+                            statistics_categories[category][tag_type][tag_entry] = 1
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
