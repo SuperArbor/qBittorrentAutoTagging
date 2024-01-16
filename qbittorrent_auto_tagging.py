@@ -377,7 +377,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 if overwrite:
                     torrent.remove_tags()
                 torrent.add_tags(t_tags)
-                print(f'tags: {tags_needed}')
+                print(f'tags: {t_tags}')
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
