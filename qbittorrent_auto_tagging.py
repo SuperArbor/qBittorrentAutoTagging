@@ -159,7 +159,7 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
 def handle_torrent(client, torrent:qbit.TorrentDictionary, 
                     trackers:dict, trackers_to_ignore:list,
                     tags_to_record:dict, teams:list, 
-                    overwrite:bool, update_tags:bool) -> tuple[str, dict]:
+                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[str, dict]:
     """Setting category and tags of a torrent by decoding the torrent name
 
     Args:
@@ -171,6 +171,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         teams (list): teams in buffer
         overwrite (bool): overwrite the existing tags when adding new ones
         update_tags (bool): update tags for torrent in the client
+        delay_operation (bool): delay tagging operation, only return category and tags
 
     Returns:
         tuple[str, dict]: the category and the tags
@@ -200,7 +201,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
             for tag_type, tag_value in tags.items():
                 if tag_type in tags_to_record.keys():
                     tags.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})
-            if update_tags:
+            if update_tags and not delay_operation:
                 if overwrite:
                     client.torrents_remove_tags(torrent_hashes=torrent.hash)
                 # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
@@ -247,7 +248,7 @@ def process_new(info_hash:str, config:dict, statistics:dict):
             handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore, 
                 tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
-                overwrite=overwrite, update_tags=update_tags)
+                overwrite=overwrite, update_tags=update_tags, delay_operation=False)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -306,13 +307,19 @@ def process_all(config:dict, statistics:dict) -> dict:
         total = len(torrent_list)
         print(f'Done. {total} torrents to process.')        
         count = 0
+        torrent_category = {}
+        torrent_tags = {}
         for torrent in torrent_list:
             count += 1
             print(f'({count} / {total}) Handling torrent {torrent.name}...')
             category, tags = handle_torrent(
                 client, torrent=torrent, trackers=trackers, trackers_to_ignore=trackers_to_ignore,
                 tags_to_record=tags_to_record, teams=list(statistics_total['team'].keys()), 
-                overwrite=overwrite, update_tags=update_tags)
+                overwrite=overwrite, update_tags=update_tags, delay_operation=True)
+            torrent_category.update({torrent.hash: category})
+            # consider tags_decorated = {'content': ''}, where tags such as 'media' are in tags_to_record but not in tags_decorated.keys()
+            tags_needed = list({tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()}.values())
+            torrent_tags.update({torrent.hash: tags_needed})
             if update_statistics and tags:
                 for tag_type in tags.keys():
                     if not tag_type in tags_to_record.keys():
@@ -331,25 +338,33 @@ def process_all(config:dict, statistics:dict) -> dict:
                         else:
                             statistics_categories[category][tag_type][tag_entry] = 1
         
-        # remove tags with too few entries
-        tagType_tags = {tag_type:[] for tag_type in tags_to_record.keys()}
-        tag_numbers = {}
-        for tag in client.torrent_tags.tags:
-            torrent_list = client.torrents_info(tag=tag)
-            tag_numbers.update({tag:len(torrent_list)})
+        if update_tags:
+            # remove tags with too few entries
+            tagType_tags = {tag_type:[] for tag_type in tags_to_record.keys()}
+            tag_numbers = {}
+            tags_to_remove = []
+            for t_tags in torrent_tags.values():
+                for tag in t_tags:
+                    tag_numbers[tag] = 1 if tag not in tag_numbers.keys() else tag_numbers[tag] + 1
+                    for tag_type in tagType_tags.keys():
+                        if tag in statistics_total[tag_type].keys():
+                            tagType_tags[tag_type].append(tag)
+                            break
             
             for tag_type in tagType_tags.keys():
-                if tag in statistics_total[tag_type].keys():
-                    tagType_tags[tag_type].append(tag)
-                    break
-        
-        for tag_type in tagType_tags.keys():
-            tags_of_type = tagType_tags[tag_type]
-            tags_limit_of_type = tags_to_record[tag_type]['max_number']
-            if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
-                tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
-                tags_to_remove = tags_of_type[tags_limit_of_type: -1]
-                client.torrents_delete_tags(tags=tags_to_remove)
+                tags_of_type = tagType_tags[tag_type]
+                tags_limit_of_type = tags_to_record[tag_type]['max_number']
+                if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
+                    tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
+                    tags_to_remove.extend(tags_of_type[tags_limit_of_type: -1])
+                
+            for t_hash, t_tags in torrent_tags.items():
+                torrent = client.torrents_info(torrent_hashes=t_hash)[0]
+                t_tags = [t for t in t_tags if t not in tags_to_remove]
+                if overwrite:
+                    torrent.remove_tags()
+                torrent.add_tags(t_tags)
+                print(f'tags: {tags_needed} for torrent {torrent.name}')
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
