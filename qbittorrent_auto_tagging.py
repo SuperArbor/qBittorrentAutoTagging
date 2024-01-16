@@ -330,29 +330,34 @@ def process_all(config:dict, statistics:dict) -> dict:
             torrent_tags.update({torrent.hash: tags_needed})
             if update_statistics and tags:
                 for tag_type in tags.keys():
+                    
                     if not tag_type in tags_to_record.keys():
                         continue
-                    tag_entry = tags[tag_type] or UNKNOWN_TAG
-                    if tag_entry in statistics_total[tag_type].keys():
-                        statistics_total[tag_type][tag_entry] += 1
+                    tag_value = tags[tag_type] or UNKNOWN_TAG
+                    if tag_value in statistics_total[tag_type].keys():
+                        statistics_total[tag_type][tag_value] += 1
                     else:
-                        statistics_total[tag_type][tag_entry] = 1
+                        statistics_total[tag_type][tag_value] = 1
                     
                     if category:
                         if category not in statistics_categories.keys():
                             statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
-                        if tag_entry in statistics_categories[category][tag_type].keys():
-                            statistics_categories[category][tag_type][tag_entry] += 1
+                        if tag_value in statistics_categories[category][tag_type].keys():
+                            statistics_categories[category][tag_type][tag_value] += 1
                         else:
-                            statistics_categories[category][tag_type][tag_entry] = 1
+                            statistics_categories[category][tag_type][tag_value] = 1
         
         if update_tags:
             print(f'Updating tags...')
             # remove tags with too few entries
+            # stores tag type - tag list pairs such as {'media': ['BluRay', 'DVD', 'WEB']}
             tagType_tags = {tag_type:set() for tag_type in tags_to_record.keys()}
+            # stores tag - number pairs where the number is the torrent number with the tag, such as {‘#Movie’: 2011}
             tag_numbers = {}
+            # stores tags that should be removed
             tags_to_remove = []
             for t_tags in torrent_tags.values():
+                # obtain tagType_tags and tag_numbers in this loop
                 for tag in t_tags:
                     tag_numbers[tag] = 1 if tag not in tag_numbers.keys() else tag_numbers[tag] + 1
                     for tag_type in tagType_tags.keys():
@@ -361,6 +366,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                             break
             
             for tag_type in tagType_tags.keys():
+                # obtain tags_to_remove list
                 tags_of_type = list(tagType_tags[tag_type])
                 tags_limit_of_type = tags_to_record[tag_type]['max_number']
                 if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
@@ -374,10 +380,20 @@ def process_all(config:dict, statistics:dict) -> dict:
                 torrent = client.torrents_info(torrent_hashes=t_hash)[0]
                 print(f'({count} / {total}) Tagging torrent {torrent.name}...')
                 t_tags = [t for t in t_tags if t not in tags_to_remove]
-                if overwrite:
-                    torrent.remove_tags()
-                torrent.add_tags(t_tags)
-                print(f'tags: {t_tags}')
+                if t_tags:
+                    if overwrite:
+                        torrent.remove_tags()
+                    torrent.add_tags(t_tags)
+                    print(f'tags: {t_tags}')
+            
+            # remove unneeded tags (those used by no torrents)
+            tags_to_delete = []
+            for tag in client.torrent_tags.tags:
+                torrent_list = client.torrents_info(tag=tag)
+                if len(torrent_list) == 0:
+                    tags_to_delete.append(tag)
+            
+            client.torrents_delete_tags(tags=tags_to_delete)
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
