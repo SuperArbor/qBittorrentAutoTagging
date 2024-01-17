@@ -1,5 +1,5 @@
 import unittest, os
-from qbittorrent_auto_tagging import decode_torrent_tags, handle_torrent, process_new, process_all
+from qbittorrent_auto_tagging import decode_torrent_tags, handle_torrent_tags, process_new, process_all
 
 current_dir = os.path.dirname(__file__)
 path_config = os.path.join(current_dir, 'config.yaml')
