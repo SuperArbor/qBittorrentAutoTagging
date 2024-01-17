@@ -36,7 +36,7 @@ update_tags: true
 tags_to_record:
   content:              # Movie, TV
     prefix: '#'         # 指定tag类型前缀，如果不需要添加，则为""
-    max_number: -1      # 指定该类别的tag最多保留的数量，如果小于零，则不舍保留上限
+    max_number: -1      # 指定该类别的tag最多保留的数量，如果小于零，则不设上限
   media:                # BluRay, DVD, HDTV, WEB
     prefix: '$'
     max_number: -1
