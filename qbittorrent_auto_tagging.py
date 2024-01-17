@@ -263,9 +263,14 @@ def process_new(info_hash:str, config:dict, statistics:dict):
             
             # get category
             category = ''
-            for cat, url in trackers.items():
-                if str.lower(url) in str.lower(torrent['tracker']):
-                    category = cat
+            # notice: torrent['tracker'] can access the tracker url as well, but at the time the torrent is 
+            # added, it may not return the proper value. While torrent.trackers can always return wished results.
+            for tracker in torrent.trackers:
+                for cat, url in trackers.items():
+                    if str.lower(url) in str.lower(tracker.url):
+                        category = cat
+                        break
+                if category:
                     break
             if category:
                 # check and create category
@@ -386,12 +391,16 @@ def process_all(config:dict, statistics:dict) -> dict:
             category = ''
             if torrent['tracker']:
                 if not tracker_category_map.get(torrent['tracker']):
-                    for cat, url in trackers.items():
-                        if str.lower(url) in str.lower(torrent['tracker']):
-                            category = cat
+                    # notice: torrent['tracker'] can access the tracker url as well, but at the time the torrent is 
+                    # added, it may not return the proper value. While torrent.trackers can always return wished results.
+                    for tracker in torrent.trackers:
+                        for cat, url in trackers.items():
+                            if str.lower(url) in str.lower(tracker.url):
+                                category = cat
+                                break
+                        if category:
+                            tracker_category_map.update({torrent['tracker']: category})
                             break
-                    if category:
-                        tracker_category_map.update({torrent['tracker']: category})
                 else:
                     category = tracker_category_map[torrent['tracker']]
             
@@ -474,7 +483,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                         torrent.add_tags(t_tags_list)
                         print(f'tags: {t_tags_list}')
             
-            print(f'Remove unneeded tags (those used by no torrents)..')
+            print(f'Remove unneeded tags (those used by no torrents)...')
             tags_to_delete = []
             for tag in client.torrents_tags():
                 torrent_list = client.torrents_info(tag=tag)
