@@ -380,7 +380,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
             # torrent_tags is used to update client UI, so tags_UI is passed in
             if delay_operation:
-                torrent_tags.update({torrent.hash: tags_UI if tags_UI else []})
+                torrent_tags.update({torrent.hash: tags_UI if tags_UI else {}})
             if update_statistics and tags:
                 # store unprefixed tags in statistics
                 if category:
@@ -436,8 +436,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                     if overwrite:
                         # 保留tags_to_reserve中的标签
                         current_tags = [t.strip() for t in torrent.info.tags.split(',')]
-                        t_tags_list.extend([t for t in current_tags if t in tags_to_reserve])
-                        torrent.remove_tags()
+                        torrent.remove_tags([t for t in current_tags if t not in tags_to_reserve])
                     if t_tags_list:
                         torrent.add_tags(t_tags_list)
                         print(f'tags: {t_tags_list}')
