@@ -263,21 +263,18 @@ def process_new(info_hash:str, config:dict, statistics:dict):
             
             # get category
             category = ''
-            for tracker in torrent.trackers:
-                for cat, url in trackers.items():
-                    if str.lower(url) in str.lower(tracker.url):
-                        category = cat
-                        break
-                if category:
-                    # check and create category
-                    if category not in client.torrent_categories.categories:
-                        client.torrents_create_category(category)
+            for cat, url in trackers.items():
+                if str.lower(url) in str.lower(torrent['tracker']):
+                    category = cat
                     break
-            # handle category
             if category:
+                # check and create category
+                if category not in client.torrent_categories.categories:
+                    client.torrents_create_category(category)
+                # handle category
                 if torrent['category'] != category:
                     torrent.set_category(category)
-                print(f'category: {category}')     
+                print(f'category: {category}')   
                 
             if (not trackers_to_ignore) or (category not in trackers_to_ignore):
                 print(f'Handling tags for torrent {torrent.name}...')
@@ -380,18 +377,23 @@ def process_all(config:dict, statistics:dict) -> dict:
            
         count = 0
         torrent_tags = {}
+        # a buffer to store tracker and category relationships
+        tracker_category_map = {}
         for torrent in torrent_list:
             count += 1
             
             # get category
             category = ''
-            for tracker in torrent.trackers:
-                for cat, url in trackers.items():
-                    if str.lower(url) in str.lower(tracker.url):
-                        category = cat
-                        break
-                if category:
-                    break
+            if torrent['tracker']:
+                if not tracker_category_map.get(torrent['tracker']):
+                    for cat, url in trackers.items():
+                        if str.lower(url) in str.lower(torrent['tracker']):
+                            category = cat
+                            break
+                    if category:
+                        tracker_category_map.update({torrent['tracker']: category})
+                else:
+                    category = tracker_category_map[torrent['tracker']]
             
             # handle category
             if category:
