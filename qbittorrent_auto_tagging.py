@@ -7,6 +7,7 @@ SPLITTERS = ['.', ' ']
 # 压制组前缀
 SPLITTER_TEAM = '-'
 EXTENTS = ['.mkv', '.mp4']
+CONTENTS = ['Movie', 'TV', 'Music']
 MEDIA_TYPES_MORE = ['BluRay', 'Blu-ray', 'BDRip', 'DVD', 'DVDRip', 'HDDVD', 'HDTV', 'WEB', 'WEB-DL', 'WEBRip']
 YEAR_MIN = 1900
 YEAR_MAX = datetime.datetime.now().year
@@ -191,13 +192,45 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[]) -> d
     
     return tags
 
-def handle_torrent_tags(torrent:qbit.TorrentDictionary, tags_to_record:dict, tags_to_reserve:list, teams:list, 
+def handle_torrent_tags_music(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_reserve:list, 
                     overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[dict, dict]:
-    """Setting tags of a torrent by decoding the torrent name
+    """Setting tags of a torrent by decoding the torrent name (for Movie and TV)
 
     Args:
         torrent (qbit.TorrentDictionary): the torrent to be handled
-        tags_to_record (dict): tag types to record
+        tag_types (dict): tag types to record
+        tags_to_reserve (list): tags to be reserved when clearing old tags
+        overwrite (bool): overwrite the existing tags when adding new ones
+        update_tags (bool): update tags for torrent in the client
+        delay_operation (bool): delay tagging operation, only return category and tags
+
+    Returns:
+        tuple[dict, dict]: the tags and the tags to be shown in the client UI (with prefixes)
+    """
+    # handle tags
+    tags = {'content':'Music'}
+    tags_UI = copy.copy(tags)
+    for tag_type, tag_value in tags_UI.items():
+        tags_UI.update({tag_type:f'{tag_types[tag_type]["prefix"]}{tag_value}' if tag_value else ''})            
+    if update_tags and not delay_operation:
+        if overwrite:
+            # 保留tags_to_reserve中的标签
+            current_tags = [t.strip() for t in torrent['tags'].split(',')]
+            torrent.remove_tags([t for t in current_tags if t not in tags_to_reserve])
+        t_tags_list = tags_UI.values()
+        if t_tags_list:
+            torrent.add_tags(t_tags_list)
+        print(f'tags: {t_tags_list}')
+        
+    return tags, tags_UI
+
+def handle_torrent_tags(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_reserve:list, teams:list, 
+                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[dict, dict]:
+    """Setting tags of a torrent by decoding the torrent name (for Movie and TV)
+
+    Args:
+        torrent (qbit.TorrentDictionary): the torrent to be handled
+        tag_types (dict): tag types to record
         tags_to_reserve (list): tags to be reserved when clearing old tags
         teams (list): teams in buffer
         overwrite (bool): overwrite the existing tags when adding new ones
@@ -207,12 +240,12 @@ def handle_torrent_tags(torrent:qbit.TorrentDictionary, tags_to_record:dict, tag
     Returns:
         tuple[dict, dict]: the tags and the tags to be shown in the client UI (with prefixes)
     """
-    # handle tags
-    tags = decode_torrent_tags(torrent.name, teams=teams, tag_types=list(tags_to_record.keys()))
+    # note that tag_types should have been filtered 
+    tags = decode_torrent_tags(torrent.name, teams=teams, tag_types=[tag_type for tag_type in tag_types.keys()])
     if tags:
         tags_UI = copy.copy(tags)
         for tag_type, tag_value in tags_UI.items():
-            tags_UI.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})            
+            tags_UI.update({tag_type:f'{tag_types[tag_type]["prefix"]}{tag_value}' if tag_value else ''})            
         if update_tags and not delay_operation:
             if overwrite:
                 # 保留tags_to_reserve中的标签
@@ -240,19 +273,32 @@ def process_new(info_hash:str, config:dict, statistics:dict):
     client = qbit.Client(**conn_info)
 
     # 记录的标签
-    tags_to_record = config['tags_to_record'] or {}
+    tag_types = config['tag_types'] or {}
+    # filter the ignored tag types here
+    tag_types = {tag_type: tag_value for tag_type, tag_value in tag_types.items() if not tag_value['ignore'] }
+    # complete the tag_types elements
+    for tag_type in tag_types.keys():
+        if not tag_types[tag_type].get('prefix'):
+            tag_types[tag_type]['prefix'] = ''
+        if not tag_types[tag_type].get('max_number'):
+            tag_types[tag_type]['max_number'] = -1
     # 服务器缩写：url关键词，用于创建种子的categories
-    trackers = config['trackers'] or []
+    trackers = config['trackers'] or {}
+    # complete the trackers elements
+    for tracker in trackers.keys():
+        if not trackers[tracker].get('content'):
+            trackers[tracker]['content'] = CONTENTS
+        if not trackers[tracker].get('ignore'):
+            trackers[tracker]['ignore'] = False
     # 是否清除已有标签
     overwrite = config['overwrite'] or False
     # 更新标签时保留的标签内容
     tags_to_reserve = config['tags_to_reserve'] or []
     # 是否更新客户端中的标签
     update_tags = config['update_tags'] or False
-    # 需要过滤的trackers
-    trackers_to_ignore = config['trackers_to_ignore'] or []
     # 全局统计
     statistics_total = statistics['TOTAL'] or {'team':{}}
+    
     try:
         client.auth_log_in()
                 
@@ -268,8 +314,8 @@ def process_new(info_hash:str, config:dict, statistics:dict):
             # notice: torrent['tracker'] can access the tracker url as well, but at the time the torrent is 
             # added, it may not return the proper value. While torrent.trackers can always return wished results.
             for tracker in torrent.trackers:
-                for cat, url in trackers.items():
-                    if str.lower(url) in str.lower(tracker.url):
+                for cat, cat_spec in trackers.items():
+                    if str.lower(cat_spec['url_key']) in str.lower(tracker.url):
                         category = cat
                         break
                 if category:
@@ -282,13 +328,19 @@ def process_new(info_hash:str, config:dict, statistics:dict):
                 if torrent['category'] != category:
                     torrent.set_category(category)
                 print(f'category: {category}')   
-                
+            
+            # 需要过滤的trackers
+            trackers_to_ignore = [tracker for tracker in trackers.keys() if trackers[tracker]['ignore']]    
             if (not trackers_to_ignore) or (category not in trackers_to_ignore):
                 print(f'Handling tags for torrent {torrent.name}...')
-                handle_torrent_tags(torrent=torrent, tags_to_record=tags_to_record, tags_to_reserve=tags_to_reserve, 
-                    teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags, delay_operation=False)
+                if category and trackers[category]['content'] == ['Music']:
+                    handle_torrent_tags_music(torrent=torrent, tag_types=tag_types, tags_to_reserve=tags_to_reserve, 
+                        overwrite=overwrite, update_tags=update_tags, delay_operation=False)   
+                else:
+                    handle_torrent_tags(torrent=torrent, tag_types=tag_types, tags_to_reserve=tags_to_reserve, 
+                        teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags, delay_operation=False)              
             else:
-                print(f'Torrent {torrent.name} in trackers_to_ignore, skip tagging it')
+                print(f'Torrent {torrent.name} in a tracker specified to ignore, skip tagging it')
     except qbit.LoginFailed as e:
         print(e)
     client.auth_log_out()
@@ -308,9 +360,23 @@ def process_all(config:dict, statistics:dict) -> dict:
     client = qbit.Client(**conn_info)
 
     # 记录的标签
-    tags_to_record = config['tags_to_record'] or {}
+    tag_types = config['tag_types'] or {}
+    # filter the ignored tag types here
+    tag_types = {tag_type: tag_value for tag_type, tag_value in tag_types.items() if not tag_value['ignore'] }
+    # complete the tag_types elements
+    for tag_type in tag_types.keys():
+        if not tag_types[tag_type].get('prefix'):
+            tag_types[tag_type]['prefix'] = ''
+        if not tag_types[tag_type].get('max_number'):
+            tag_types[tag_type]['max_number'] = -1
     # 服务器缩写：url关键词，用于创建种子的categories
-    trackers = config['trackers'] or []
+    trackers = config['trackers'] or {}
+    # complete the trackers elements
+    for tracker in trackers.keys():
+        if not trackers[tracker].get('content'):
+            trackers[tracker]['content'] = CONTENTS
+        if not trackers[tracker].get('ignore'):
+            trackers[tracker]['ignore'] = False
     # 是否清除已有标签
     overwrite = config['overwrite'] or False
     # 更新标签时保留的标签内容
@@ -319,14 +385,13 @@ def process_all(config:dict, statistics:dict) -> dict:
     update_statistics = config['update_statistics'] or False
     # 是否更新客户端中的标签
     update_tags = config['update_tags'] or False
-    # 需要过滤的trackers
-    trackers_to_ignore = config['trackers_to_ignore'] or []
     # 全局统计
     statistics_total = statistics['TOTAL'] or {}
     # 分类统计
     statistics_categories = statistics['CATEGORIES'] or {}
+    
     # 初始化统计数据
-    for tag_type in tags_to_record.keys():
+    for tag_type in tag_types.keys():
         if tag_type == 'team':
             if statistics_total.get(tag_type):
                 # teams in statistics are useful
@@ -351,17 +416,17 @@ def process_all(config:dict, statistics:dict) -> dict:
     
     # 清除文件中的陈旧标签
     for tag_type in statistics_total.keys():
-        if (tag_type not in tags_to_record.keys()) and tag_type != 'team':
+        if (tag_type not in tag_types.keys()) and tag_type != 'team':
             statistics_total[tag_type] = {}        
     for category in statistics_categories.keys():
         for tag_type in statistics_categories[category].keys():
-            if (tag_type not in tags_to_record.keys()) and tag_type != 'team':
+            if (tag_type not in tag_types.keys()) and tag_type != 'team':
                 statistics_categories[category][tag_type] = {}
     
     # tags_to_record中存在任意标签类型需要限制标签显示数目时，采用delay_operation
     delay_operation = False
-    for tag_type in tags_to_record.keys():
-        if tags_to_record[tag_type]['max_number'] > 0:
+    for tag_type in tag_types.keys():
+        if tag_types[tag_type]['max_number'] > 0:
             delay_operation = True
             break       
     if delay_operation:
@@ -396,8 +461,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                     # notice: torrent['tracker'] can access the tracker url as well, but at the time the torrent is 
                     # added, it may not return the proper value. While torrent.trackers can always return wished results.
                     for tracker in torrent.trackers:
-                        for cat, url in trackers.items():
-                            if str.lower(url) in str.lower(tracker.url):
+                        for cat, cat_spec in trackers.items():
+                            if str.lower(cat_spec['url_key']) in str.lower(tracker.url):
                                 category = cat
                                 break
                         if category:
@@ -412,21 +477,26 @@ def process_all(config:dict, statistics:dict) -> dict:
                     torrent.set_category(category)
                 print(f'category: {category}') 
             
+            # 需要过滤的trackers
+            trackers_to_ignore = [tracker for tracker in trackers.keys() if trackers[tracker]['ignore']]    
             if (not trackers_to_ignore) or (category not in trackers_to_ignore):
                 if delay_operation:
                     print(f'({count} / {total}) [Delayed] Handling tags for torrent {torrent.name}...')
                 else:
                     print(f'({count} / {total}) Handling tags for torrent {torrent.name}...')
-                    
-                tags, tags_UI = handle_torrent_tags(torrent=torrent, tags_to_record=tags_to_record, tags_to_reserve=tags_to_reserve, 
-                    teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
+                if category and trackers[category]['content'] == ['Music']:
+                    tags, tags_UI = handle_torrent_tags_music(torrent=torrent, tag_types=tag_types, tags_to_reserve=tags_to_reserve, 
+                    overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
+                else:
+                    tags, tags_UI = handle_torrent_tags(torrent=torrent, tag_types=tag_types, tags_to_reserve=tags_to_reserve, 
+                        teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
                 # torrent_tags is used to update client UI, so tags_UI is passed in
                 if delay_operation:
                     torrent_tags.update({torrent.hash: tags_UI if tags_UI else {}})
                 if update_statistics and category:
                     # create entries for the category in statistics if not existing
                     if category not in statistics_categories.keys():
-                        statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
+                        statistics_categories[category] = {tag_type:{} for tag_type in tag_types.keys()}
                 if update_statistics and tags:
                     # store unprefixed tags in statistics
                     for tag_type in tags.keys():
@@ -442,14 +512,14 @@ def process_all(config:dict, statistics:dict) -> dict:
                             else:
                                 statistics_categories[category][tag_type][tag_value] = 1
             else:
-                print(f'({count} / {total}) Torrent {torrent.name} in trackers_to_ignore, skip tagging it')
+                print(f'({count} / {total}) Torrent {torrent.name} in a tracker specified to ignore, skip tagging it')
         
         if update_tags:
             if delay_operation:
                 print(f'Delay operation starts: updating tags...')
                 # remove tags with too few entries
                 # stores tag type - tag list pairs (the tags are prefixed) such as {'media': ['$BluRay', '$DVD', '$WEB']}
-                tagType_tags = {tag_type:set() for tag_type in tags_to_record.keys()}
+                tagType_tags = {tag_type:set() for tag_type in tag_types.keys()}
                 # stores tag - number pairs where the number is the torrent number with the tag, such as {‘#Movie’: 2011}
                 tag_numbers = {}
                 # stores tags that should be removed
@@ -463,7 +533,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                 for tag_type in tagType_tags.keys():
                     # obtain tags_to_remove list
                     tags_of_type = list(tagType_tags[tag_type])
-                    tags_limit_of_type = tags_to_record[tag_type]['max_number']
+                    tags_limit_of_type = tag_types[tag_type]['max_number']
                     if tags_limit_of_type > 0 and tags_limit_of_type < len(tags_of_type):
                         tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
                         tags_to_remove.extend(tags_of_type[tags_limit_of_type: -1])

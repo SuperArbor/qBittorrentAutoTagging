@@ -28,44 +28,50 @@ username: admin
 password: admin
 # 创建新的tag时是否清除已有标签
 overwrite: true
+# 定义标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+tag_types:
+  content:              # Movie, TV, Music
+    prefix: '#'         # the prefix to decorate before the tag
+    max_number: -1      # max number of instances to keep under this tag type
+    ignore: false       # whether to ignore the tag type or not when tagging
+  media:                # BluRay, DVD, HDTV, WEB
+    prefix: '$'
+    max_number: -1
+    ignore: false
+  resolution:           # 720p/i, 1080p/i, 2160p/i 
+    prefix: ''
+    max_number: -1
+    ignore: false
+  team:                 # Author of the Encode
+    prefix: '-'
+    max_number: 2
+    ignore: false
+  process_type:         # Encode, Raw
+    prefix: '~'
+    max_number: -1
+    ignore: true
+  process_method:       # H264/H265, x264/x265
+    prefix: ''
+    max_number: -1
+    ignore: true
+  year:                 # year when the workpiece was produced
+    prefix: ''
+    max_number: 3
+    ignore: true
 # 更新标签时保留的标签内容
 tags_to_reserve:
   - ★Save
   - ★Post
-# 是否更新statistics中的统计数据
-update_statistics: true
-# 是否更新客户端中的标签
-update_tags: true
-# 记录的标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
-tags_to_record:
-  content:              # Movie, TV
-    prefix: '#'         # 指定tag类型前缀，如果不需要添加，则为""
-    max_number: -1      # 指定该类别的tag最多保留的数量，如果小于零，则不设上限
-  media:                # BluRay, DVD, HDTV, WEB
-    prefix: '$'
-    max_number: -1
-  resolution:           # 720p, 1080p, 2160p 
-    prefix: ''
-    max_number: -1
-  team:                 # Author of the Encode
-    prefix: '-'
-    max_number: 3
-  process_type:         # Encode, Raw
-    prefix: '~'
-    max_number: -1
-  process_method:       # H264/H265, x264/x265
-    prefix: ''
-    max_number: -1
-  year:                 # year when the workpiece was produced
-    prefix: ''
-    max_number: 3
-# tracker缩写与url关键词的映射关系，用于创建种子的categories
+# 定义各个trackers的特性
 trackers:
-  NHD: nexushd
-  PuTao: sjtu
-# 从上一个条目的keys中选择需要过滤的trackers，如果留白，则全部处理
-trackers_to_ignore:
-  - NHD
+  NHD: 
+    url_key: nexushd    # key word in tracker url
+    ignore: false       # whether to ignore the tracker or not when tagging
+    content:            # specify content types in the tracker
+  PuTao: 
+    url_key: sjtu
+    ignore: false
+    content:
 ```
 
 ### 使用
