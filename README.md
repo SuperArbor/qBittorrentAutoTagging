@@ -28,6 +28,10 @@ username: admin
 password: admin
 # 创建新的tag时是否清除已有标签
 overwrite: true
+# 更新标签时保留的标签内容
+tags_to_reserve:
+  - ★Save
+  - ★Post
 # 是否更新statistics中的统计数据
 update_statistics: true
 # 是否更新客户端中的标签

@@ -307,6 +307,8 @@ def process_all(config:dict, statistics:dict) -> dict:
     trackers = config['trackers'] or []
     # 是否清除已有标签
     overwrite = config['overwrite'] or False
+    # 更新标签时保留的标签内容
+    tags_to_reserve = config['tags_to_reserve'] or []
     # 是否更新statistics中的统计数据
     update_statistics = config['update_statistics'] or False
     # 是否更新客户端中的标签
@@ -422,6 +424,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                         tags_of_type.sort(key=lambda x: tag_numbers[x], reverse=True)
                         tags_to_remove.extend(tags_of_type[tags_limit_of_type: -1])
                 
+                # 保留tags_to_reserve中的标签
+                tags_to_remove = [t for t in tags_to_remove if t not in tags_to_reserve]
                 count = 0
                 total = len(torrent_tags)
                 for t_hash, t_tags in torrent_tags.items():
@@ -430,6 +434,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                     print(f'({count} / {total}) Tagging torrent {torrent.name}...')
                     t_tags_list = [t for t in t_tags.values() if t not in tags_to_remove]
                     if overwrite:
+                        # 保留tags_to_reserve中的标签
+                        t_tags_list.extend([t for t in torrent.info.tags.split(',') if t in tags_to_reserve])
                         torrent.remove_tags()
                     if t_tags_list:
                         torrent.add_tags(t_tags_list)
@@ -438,6 +444,8 @@ def process_all(config:dict, statistics:dict) -> dict:
             print(f'Remove unneeded tags (those used by no torrents)..')
             tags_to_delete = []
             for tag in client.torrent_tags.tags:
+                if tag in tags_to_remove:
+                    continue
                 torrent_list = client.torrents_info(tag=tag)
                 if len(torrent_list) == 0:
                     tags_to_delete.append(tag)
