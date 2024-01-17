@@ -443,9 +443,7 @@ def process_all(config:dict, statistics:dict) -> dict:
             
             print(f'Remove unneeded tags (those used by no torrents)..')
             tags_to_delete = []
-            for tag in client.torrent_tags.tags:
-                if tag in tags_to_remove:
-                    continue
+            for tag in client.torrents_tags():
                 torrent_list = client.torrents_info(tag=tag)
                 if len(torrent_list) == 0:
                     tags_to_delete.append(tag)
