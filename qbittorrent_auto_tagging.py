@@ -232,6 +232,8 @@ def process_new(info_hash:str, config:dict, statistics:dict):
 
     Args:
         info_hash (str): the info hash, used for retrieving the specific torrent from the client
+        config (dict): configuration
+        statistics (dict): statistics read from a file
     """
     host, port, username, password = config['host'], config['port'], config['username'], config['password']
     conn_info = dict(host=host, port=port, username=username, password=password,)
