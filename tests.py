@@ -7,6 +7,7 @@ path_statistics = os.path.join(current_dir, 'statistics.yaml')
 
 class TestAutoTaggingMethods(unittest.TestCase):
     def test_decode_torrent_tags(self):
+        # full tests
         input_list = [
             'The.Frighteners.1996.DC.1080p.UHD.BluRay.DDP.7.1.DoVi.HDR10.x265-c0kE',
             'Mrs. Doubtfire 1993 1080p Bluray DD5.1 x264-Friday.mkv',
@@ -28,8 +29,20 @@ class TestAutoTaggingMethods(unittest.TestCase):
             print(tags)
             self.assertEquals(tags, expected_output)
         
+        # test irregular team
         torrent_name = 'Begin Again 2014 1080p BluRay x264 EbP'
         tags = decode_torrent_tags(torrent_name)
         self.assertEquals(tags['team'], '')
         tags = decode_torrent_tags(torrent_name, teams=['EbP'])
         self.assertEquals(tags['team'], 'EbP')
+        
+        # test with tag_types specified
+        tag_types_all = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+        combinations = [[0], [0, 1], [2, 4], [3, 4, 5], [7], list(range(len(tag_types_all)))]
+        torrent_name = 'The.Frighteners.1996.DC.1080p.UHD.BluRay.DDP.7.1.DoVi.HDR10.x265-c0kE'
+        for comb in combinations:
+            tag_types = [tag_types_all[i] for i in comb]
+            tags = decode_torrent_tags(torrent_name, teams=[], tag_types=tag_types)
+            print(tags)
+            self.assertEquals(set(tags.keys()), set(tag_types))
+        

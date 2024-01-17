@@ -21,12 +21,13 @@ TAGS = {
     'resolution': ['1080', '2160', '720']
 }
 
-def decode_torrent_tags(torrent_name:str, teams:list=[]) -> dict:
+def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[]) -> dict:
     """Decode the torrent name for Movie or TV and returns tags
 
     Args:
         torrent_name (str): torrent name
         teams (list): teams in the buffer, used for some irregular torrent names
+        tag_types (list): tag types specified to decode
 
     Returns:
         dict: decoded tags
@@ -46,6 +47,9 @@ def decode_torrent_tags(torrent_name:str, teams:list=[]) -> dict:
     if not splitter:
         return {'content': ''}
     groups = torrent_name.split(splitter)
+    
+    if not tag_types:
+        tag_types = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
     
     media = ''
     resolution = ''
@@ -96,84 +100,94 @@ def decode_torrent_tags(torrent_name:str, teams:list=[]) -> dict:
     if (not media) and (not resolution):
         return {'content': ''}
     
-    last_item = groups.pop()
-    last_items = last_item.split(SPLITTER_TEAM)
+    # Handling team
     team = ''
-    groups.extend(last_items)
-    groups_lowered = [str.lower(group) for group in groups]
-    if len(last_items) == 2:
-        team = last_items[1]
-        marked.append(len(groups) - 1)
-    elif len(last_items) == 1:
-        # sometimes the team is not prefixed with the splitter
-        if last_item in teams:
-            team = last_item
+    if 'team' in tag_types:
+        last_item = groups.pop()
+        last_items = last_item.split(SPLITTER_TEAM)
+        groups.extend(last_items)
+        groups_lowered = [str.lower(group) for group in groups]
+        if len(last_items) == 2:
+            team = last_items[1]
             marked.append(len(groups) - 1)
+        elif len(last_items) == 1:
+            # sometimes the team is not prefixed with the splitter
+            if last_item in teams:
+                team = last_item
+                marked.append(len(groups) - 1)
         
+    # Handling process_method and process_type
     process_method = ''
     process_type = ''
-    for i in range(len(groups_lowered)):
-        if i in marked:
-            continue
-        mat = re.match(r'(x26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
-        if mat:
-            r = str.lower(mat.string)
-            if r.startswith('x26'):
-                process_method = r
-                process_type = 'Encode'
-            elif r.startswith('h26') or r.startswith('h.26'):
-                process_method = str.upper(r)
-                process_type = 'Raw'
-            elif r == 'avc':
-                process_method = 'H.264'
-                process_type = 'Raw'
-            elif r == 'hevc':
-                process_method = 'H.265'
-                process_type = 'Raw'
-            elif r == 'xvid':
-                process_method = 'XviD'
-                process_type = 'Encode'
-            elif r == 'divx':
-                process_method = 'DivX'
-                process_type = 'Encode'
-            elif r == 'mpeg-2':
-                process_method = 'MPEG-2'
-                process_type = 'Raw'
-            else:
-                process_method = r
-                process_type = 'Encode'
-            marked.append(i)
-            break
+    if 'process_method' in tag_types or 'process_type' in tag_types:
+        for i in range(len(groups_lowered)):
+            if i in marked:
+                continue
+            mat = re.match(r'(x26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
+            if mat:
+                r = str.lower(mat.string)
+                if r.startswith('x26'):
+                    process_method = r
+                    process_type = 'Encode'
+                elif r.startswith('h26') or r.startswith('h.26'):
+                    process_method = str.upper(r)
+                    process_type = 'Raw'
+                elif r == 'avc':
+                    process_method = 'H.264'
+                    process_type = 'Raw'
+                elif r == 'hevc':
+                    process_method = 'H.265'
+                    process_type = 'Raw'
+                elif r == 'xvid':
+                    process_method = 'XviD'
+                    process_type = 'Encode'
+                elif r == 'divx':
+                    process_method = 'DivX'
+                    process_type = 'Encode'
+                elif r == 'mpeg-2':
+                    process_method = 'MPEG-2'
+                    process_type = 'Raw'
+                else:
+                    process_method = r
+                    process_type = 'Encode'
+                marked.append(i)
+                break
     
+    # Handling year and content
     year = ''
     content = ''
-    for i in reversed(range(len(groups_lowered))):
-        if year and content:
-            break
-        if i in marked:
-            continue
-        match = re.match(r's\d\d.*', groups_lowered[i], re.IGNORECASE)
-        if match:
-            content = 'TV'
-            marked.append(i)
-            continue
-        try:
-            if YEAR_MIN <= int(groups[i]) <= YEAR_MAX:
-                year = groups[i]
+    if 'year' in tag_types or 'content' in tag_types or 'year' in tag_types:
+        # 'year' must be decoded if 'name' is to be decoded since 'year' is mostly next to 'name'
+        for i in reversed(range(len(groups_lowered))):
+            if year and content:
+                break
+            if i in marked:
+                continue
+            match = re.match(r's\d\d.*', groups_lowered[i], re.IGNORECASE)
+            if match:
+                content = 'TV'
                 marked.append(i)
                 continue
-        except:
-            pass
-        
-    if not content:
-        content = 'Movie'
+            try:
+                if YEAR_MIN <= int(groups[i]) <= YEAR_MAX:
+                    year = groups[i]
+                    marked.append(i)
+                    continue
+            except:
+                pass
+            
+        if not content:
+            content = 'Movie'
     
-    marked.sort()
-    name_idx = marked[0]
-    name = ' '.join([groups[i] for i in range(name_idx)])
-    tags = {'content': content, 'name':name, 'media':media, 'year':year, 
-            'resolution':resolution, 'process_method':process_method, 'process_type':process_type, 
-            'team': team}
+    name = ''
+    if 'name' in tag_types:
+        marked.sort()
+        name_idx = marked[0]
+        name = ' '.join([groups[i] for i in range(name_idx)])
+
+    tags = {}
+    for tag_type in tag_types:
+        tags.update({tag_type: eval(tag_type)})
     
     return tags
 
@@ -217,8 +231,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
             print(f'category: {category}') 
         
         # handle tags
-        tags = decode_torrent_tags(torrent.name, teams)
-        tags = {tag: tags[tag] for tag in tags_to_record.keys() if tag in tags.keys()} if tags else tags
+        tags = decode_torrent_tags(torrent.name, teams=teams, tag_types=list(tags_to_record.keys()))
         if tags:
             tags_UI = copy.copy(tags)
             for tag_type, tag_value in tags_UI.items():
