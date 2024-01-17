@@ -2,11 +2,14 @@
 
 ## 相关说明
 
-* 脚本功能：(1)自动对qBittorrent中的torrent设置标签（按照内容、媒介、分辨率、压制组等）;(2)运行全局任务后，根据分类和标签对torrent进行统计（在statistics.yaml中查看结果）。
+* 脚本功能：
+  * (1)自动对qBittorrent中的torrent设置标签（按照内容、媒介、分辨率、压制组等）;  
+  * (2)运行全局任务后，根据分类和标签对torrent进行统计（在*statistics.yaml*中查看结果）。
+* 基于命名规范程度，主要识别的内容为电影（*Movie*）和电视剧（*TV*），对于在*config.yaml*中设定为仅包含*Music*内容的tracker，也会对相应种子赋予*Music*标签。
 * 脚本中针对tagging的功能对qBittorrent版本有要求，估计至少在4.2以上。而“新增Torrent时运行”选项只在qBittorrent4.6以上版本中有，在较早版本中只有“Torrent完成时运行”选项。
 * 仅测试过Windows10，其他操作系统请自行测试。
-* 如果你原本就用到了qBittorrent的tagging系统，请谨慎使用该脚本，以免覆盖原有标签。作者不对任何后果负责。
-* 依赖的库：qbittorrent-api, PyYAML，通过如下方法安装
+* 如果你原本就用到了qBittorrent的tagging系统，请谨慎使用该脚本，以免覆盖原有标签（充分利用*config.yaml*中的*overwrite*和*tags_to_reserve*选项）。作者不对任何后果负责。
+* 依赖的库：*qbittorrent-api*, *PyYAML*，通过如下方法安装
 
 ```shell
 pip install qbittorrent-api
@@ -17,7 +20,7 @@ pip install PyYAML
 
 ### 设置
 
-在根目录下创建config.yaml文件，格式参考config.yaml.temp。
+在根目录下创建*config.yaml*文件，格式参考*config.yaml.temp*。
 
 ```yaml
 # qBittorrent所在主机的ip，以及qBittorrent WebUI的监听端口，在qBittorrent的设置 > WebUI中设置
@@ -80,9 +83,9 @@ trackers:
 
 #### 一次性识别qBittorrent客户端中现有种子
 
-在设置了config.yaml的基础上，直接运行qbittorrent_auto_tagging.py文件即可（实际调用脚本中的process_all()方法）。
+在设置了*config.yaml*的基础上，直接运行*qbittorrent_auto_tagging.py*文件即可（实际调用脚本中的*process_all*方法）。
 
-在这个情况下，还可以通过设置update_statistics开启数据统计，结果记录在statistics.yaml中，包括分类统计(CATEGORIES)和全局统计(TOTAL)两部分，格式如下（不被识别的tag标记为"?"）
+在这个情况下，还可以通过设置*update_statistics*开启数据统计，结果记录在*statistics.yaml*中，包括分类统计(*CATEGORIES*)和全局统计(*TOTAL*)两部分，格式如下（不被识别的tag标记为"*?*"）
 
 ```yaml
 CATEGORIES:
@@ -164,7 +167,7 @@ TOTAL:
 
 #### 识别新添加的种子
 
-在设置了config.yaml的基础上，勾选qBittorrent设置 > 下载 > 运行外部程序 > 新增Torrent时运行，在添加新下载任务后，自动触发调用脚本中的process_new()方法。在该设置UI处，填写命令行指令
+在设置了*config.yaml*的基础上，勾选qBittorrent设置 > 下载 > 运行外部程序 > 新增Torrent时运行，在添加新下载任务后，自动触发调用脚本中的*process_new*方法。在该设置UI处，填写命令行指令
 
 ```shell
 # 需要替换真实的python.exe和qBittorrent_auto_tagging.py路径
