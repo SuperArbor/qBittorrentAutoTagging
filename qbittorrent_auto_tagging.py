@@ -435,7 +435,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                     t_tags_list = [t for t in t_tags.values() if t not in tags_to_remove]
                     if overwrite:
                         # 保留tags_to_reserve中的标签
-                        t_tags_list.extend([t for t in torrent.info.tags.split(',') if t in tags_to_reserve])
+                        current_tags = [t.strip() for t in torrent.info.tags.split(',')]
+                        t_tags_list.extend([t for t in current_tags if t in tags_to_reserve])
                         torrent.remove_tags()
                     if t_tags_list:
                         torrent.add_tags(t_tags_list)
