@@ -7,7 +7,6 @@ SPLITTERS = ['.', ' ']
 # 压制组前缀
 SPLITTER_TEAM = '-'
 EXTENTS = ['.mkv', '.mp4']
-CONTENTS = ['Movie', 'TV', 'Music']
 MEDIA_TYPES_MORE = ['BluRay', 'Blu-ray', 'BDRip', 'DVD', 'DVDRip', 'HDDVD', 'HDTV', 'WEB', 'WEB-DL', 'WEBRip']
 YEAR_MIN = 1900
 YEAR_MAX = datetime.datetime.now().year
@@ -15,7 +14,7 @@ UNKNOWN_TAG = '?'
 
 # 全部tag
 TAGS = {
-    'content': ['Movie', 'TV'],
+    'content': ['Movie', 'TV', 'Music'],
     'media': ['BluRay', 'WEB', 'DVD', 'HDTV'],
     'process_type': ['Encode', 'Raw'],
     'process_method': ['x264', 'x265', 'H.264', 'H.265', 'XviD', 'DivX', 'MPEG-2'],
@@ -287,7 +286,7 @@ def process_new(info_hash:str, config:dict, statistics:dict):
     # complete the trackers elements
     for tracker in trackers.keys():
         if not trackers[tracker].get('content'):
-            trackers[tracker]['content'] = CONTENTS
+            trackers[tracker]['content'] = TAGS['content']
         if not trackers[tracker].get('ignore'):
             trackers[tracker]['ignore'] = False
     # 是否清除已有标签
@@ -374,7 +373,7 @@ def process_all(config:dict, statistics:dict) -> dict:
     # complete the trackers elements
     for tracker in trackers.keys():
         if not trackers[tracker].get('content'):
-            trackers[tracker]['content'] = CONTENTS
+            trackers[tracker]['content'] = TAGS['content']
         if not trackers[tracker].get('ignore'):
             trackers[tracker]['ignore'] = False
     # 是否清除已有标签
