@@ -235,8 +235,7 @@ def handle_torrent(client, torrent:qbit.TorrentDictionary,
         if tags:
             tags_UI = copy.copy(tags)
             for tag_type, tag_value in tags_UI.items():
-                if tag_type in tags_to_record.keys():
-                    tags_UI.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})            
+                tags_UI.update({tag_type:f'{tags_to_record[tag_type]["prefix"]}{tag_value}' if tag_value else ''})            
             if update_tags and not delay_operation:
                 if overwrite:
                     client.torrents_remove_tags(torrent_hashes=torrent.hash)
@@ -382,10 +381,11 @@ def process_all(config:dict, statistics:dict) -> dict:
                 torrent_tags.update({torrent.hash: list(tags_UI.values()) if tags_UI else []})
             if update_statistics and tags:
                 # store unprefixed tags in statistics
+                if category:
+                    if category not in statistics_categories.keys():
+                        statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
+                        
                 for tag_type in tags.keys():
-                    
-                    if not tag_type in tags_to_record.keys():
-                        continue
                     tag_value = tags[tag_type] or UNKNOWN_TAG
                     if tag_value in statistics_total[tag_type].keys():
                         statistics_total[tag_type][tag_value] += 1
@@ -393,8 +393,6 @@ def process_all(config:dict, statistics:dict) -> dict:
                         statistics_total[tag_type][tag_value] = 1
                     
                     if category:
-                        if category not in statistics_categories.keys():
-                            statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
                         if tag_value in statistics_categories[category][tag_type].keys():
                             statistics_categories[category][tag_type][tag_value] += 1
                         else:
