@@ -21,7 +21,7 @@ TAGS = {
     'resolution': ['1080', '2160', '720']
 }
 
-def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
+def decode_torrent_tags(torrent_name:str, teams:list=[]) -> dict:
     """Decode the torrent name for Movie or TV and returns tags
 
     Args:
@@ -34,15 +34,18 @@ def decode_torrent_tags(torrent_name:str, teams:list) -> dict:
     root, ext = os.path.splitext(torrent_name)
     if str.lower(ext) in EXTENTS:
         torrent_name = root
-    split = ''
-    groups = []
+    splitter = ''
+    current_best = 0
+    min_groups = 3
     for s in SPLITTERS:
-        groups = torrent_name.split(s)
-        if len(groups) >= 3:
-            split = s
-            break
-    if not split:
+        # 选取能够获得最多分组的分隔符
+        groups_test = torrent_name.split(s)
+        if len(groups_test) >= max(min_groups, current_best):
+            current_best = len(groups_test)
+            splitter = s
+    if not splitter:
         return {'content': ''}
+    groups = torrent_name.split(splitter)
     
     media = ''
     resolution = ''
