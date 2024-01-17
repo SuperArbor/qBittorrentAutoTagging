@@ -381,12 +381,12 @@ def process_all(config:dict, statistics:dict) -> dict:
             # torrent_tags is used to update client UI, so tags_UI is passed in
             if delay_operation:
                 torrent_tags.update({torrent.hash: tags_UI if tags_UI else {}})
+            if update_statistics and category:
+                # create entries for the category in statistics if not existing
+                if category not in statistics_categories.keys():
+                    statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
             if update_statistics and tags:
                 # store unprefixed tags in statistics
-                if category:
-                    if category not in statistics_categories.keys():
-                        statistics_categories[category] = {tag_type:{} for tag_type in tags_to_record.keys()}
-                        
                 for tag_type in tags.keys():
                     tag_value = tags[tag_type] or UNKNOWN_TAG
                     if tag_value in statistics_total[tag_type].keys():
