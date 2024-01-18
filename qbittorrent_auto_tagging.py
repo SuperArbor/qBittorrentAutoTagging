@@ -158,32 +158,34 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[], try_
         for i in range(len(groups_lowered)):
             if i in marked:
                 continue
-            mat = re.match(r'(x26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
+            mat = re.match(r'(x26\d)|(h26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
             if mat:
-                r = str.lower(mat.string)
-                if r.startswith('x26'):
-                    process_method = r
+                if mat.group(1):
+                    process_method = mat.group(1)
                     process_type = 'Encode'
-                elif r.startswith('h26') or r.startswith('h.26'):
-                    process_method = str.upper(r)
+                elif mat.group(2):
+                    process_method = f'H.{mat.group(2)[1:]}'
                     process_type = 'Raw'
-                elif r == 'avc':
+                elif mat.group(3):
+                    process_method = str.upper(mat.group(3))
+                    process_type = 'Raw'
+                elif mat.group(4):
                     process_method = 'H.264'
                     process_type = 'Raw'
-                elif r == 'hevc':
+                elif mat.group(5):
                     process_method = 'H.265'
                     process_type = 'Raw'
-                elif r == 'xvid':
+                elif mat.group(6):
                     process_method = 'XviD'
                     process_type = 'Encode'
-                elif r == 'divx':
+                elif mat.group(7):
                     process_method = 'DivX'
                     process_type = 'Encode'
-                elif r == 'mpeg-2':
+                elif mat.group(8):
                     process_method = 'MPEG-2'
                     process_type = 'Raw'
                 else:
-                    process_method = r
+                    process_method = ''
                     process_type = 'Encode'
                 marked.append(i)
                 break
