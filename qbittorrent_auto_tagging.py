@@ -23,16 +23,21 @@ TAGS = {
 
 def decode_torrent_tags_xxx(torrent_name:str, tag_types:list=[]) -> dict:
     tags = {'content': ''}
-    pattern_fc2 = r'fc2[ -]ppv[ -]\d+'
+    pattern_fc2 = r'fc2[ -](ppv[ -])?\d+'
     pattern_jav = r'[a-zA-Z]+-\d+'
+    pattern_shiro = r'\d+[a-zA-Z]+-\d+'
     content = ''
     producer = ''
-    if re.match(pattern_fc2, torrent_name, re.IGNORECASE):
-        content = 'XXX'
-        producer = 'FC2'
-    elif re.match(pattern_jav, torrent_name, re.IGNORECASE):
+    
+    if re.match(pattern_jav, torrent_name, re.IGNORECASE):
         content = 'XXX'
         producer = 'JAV'
+    elif re.match(pattern_fc2, torrent_name, re.IGNORECASE):
+        content = 'XXX'
+        producer = 'FC2'
+    elif re.match(pattern_shiro, torrent_name, re.IGNORECASE):
+        content = 'XXX'
+        producer = 'SHIRO'
     
     for tag_type in tag_types:
         if tag_type in ['content', 'producer']:
@@ -119,7 +124,7 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[], try_
             break
         
     if (not media) and (not resolution):
-        return {'content': ''}
+        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {'content': ''}
     
     # Handling team
     team = ''

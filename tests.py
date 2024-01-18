@@ -16,6 +16,10 @@ class TestAutoTaggingMethods(unittest.TestCase):
             'Lie with Me 2005 1080i BluRay REMUX MPEG-2 DD5.1-G00DB0Y.mkv',
             'Yuru.Camp.Movie.2022.2160p.BDrip.HEVC.DV.DDP7.1.Binaural.AAC-Rainbaby',
             'FC2-PPV-4210439',
+            'FC2 PPV 4210439',
+            'FC2 PPV-4210439',
+            'FC2 4210439',
+            'FC2-4210439',
             'MIDV-518'
         ]
         expected_output_list = [
@@ -25,6 +29,10 @@ class TestAutoTaggingMethods(unittest.TestCase):
             {'content': 'Movie', 'name': 'Aruitemo Aruitemo a.k.a. Still Walking', 'media': 'BluRay', 'year': '2008', 'resolution': '1080p', 'process_method': 'x264', 'process_type': 'Encode', 'team': 'LoRD', 'producer': ''},
             {'content': 'Movie', 'name': 'Lie with Me', 'media': 'BluRay', 'year': '2005', 'resolution': '1080i', 'process_method': 'MPEG-2', 'process_type': 'Raw', 'team': 'G00DB0Y', 'producer': ''},
             {'content': 'Movie', 'name': 'Yuru Camp Movie', 'media': 'BluRay', 'year': '2022', 'resolution': '2160p', 'process_method': 'H.265', 'process_type': 'Raw', 'team': 'Rainbaby', 'producer': ''},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
             {'content': 'XXX', 'producer': 'FC2'},
             {'content': 'XXX', 'producer': 'JAV'}
         ]
