@@ -22,6 +22,15 @@ TAGS = {
 }
 
 def decode_torrent_tags_xxx(torrent_name:str, tag_types:list=[]) -> dict:
+    """decoding for xxx
+
+    Args:
+        torrent_name (str): torrent name
+        tag_types (list, optional): tag types specified to decode. Defaults to [].
+
+    Returns:
+        dict: decoded tags
+    """
     tags = {'content': ''}
     pattern_fc2 = r'fc2[ -](ppv[ -])?\d+'
     pattern_jav = r'[a-zA-Z]+-\d+'
