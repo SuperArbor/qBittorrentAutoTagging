@@ -40,6 +40,10 @@ tag_types:
     prefix: ''
     max_number: 3
     ignore: true
+  producer:
+    prefix: '*'
+    max_number: -1
+    ignore: false
 # 更新标签时保留的标签内容
 tags_to_reserve:
   - ★Save
@@ -54,4 +58,17 @@ trackers:
     url_key: sjtu
     ignore: false
     content:
+  MT: 
+    url_key: m-team
+    ignore: false
+    content:
+      - Movie
+      - TV
+      - Music
+      - XXX
+  OpenCD: 
+    url_key: open.cd
+    ignore: false
+    content: 
+     - Music
   
