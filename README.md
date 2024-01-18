@@ -61,6 +61,10 @@ tag_types:
     prefix: ''
     max_number: 3
     ignore: true
+  producer:
+    prefix: '*'
+    max_number: -1
+    ignore: false
 # 更新标签时保留的标签内容
 tags_to_reserve:
   - ★Save

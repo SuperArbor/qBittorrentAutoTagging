@@ -11,23 +11,35 @@ class TestAutoTaggingMethods(unittest.TestCase):
         input_list = [
             'The.Frighteners.1996.DC.1080p.UHD.BluRay.DDP.7.1.DoVi.HDR10.x265-c0kE',
             'Mrs. Doubtfire 1993 1080p Bluray DD5.1 x264-Friday.mkv',
-            'The Talented Mr. Ripley 1999 1080p BluRay DD+5.1 x264-HiDt',
-            'Aruitemo Aruitemo a.k.a. Still Walking 2008 PROPER 1080p BluRay AAC2.0 x264-LoRD',
+            'The Talented Mr. Ripley 1999 1080p BluRay DD+5.1 H265-HiDt',
+            'Aruitemo Aruitemo a.k.a. Still Walking 2008 PROPER 1080p BluRay AAC2.0 H.264-LoRD',
             'Lie with Me 2005 1080i BluRay REMUX MPEG-2 DD5.1-G00DB0Y.mkv',
-            'Yuru.Camp.Movie.2022.2160p.BDrip.HEVC.DV.DDP7.1.Binaural.AAC-Rainbaby'
+            'Yuru.Camp.Movie.2022.2160p.BDrip.HEVC.DV.DDP7.1.Binaural.AAC-Rainbaby',
+            'FC2-PPV-4210439',
+            'FC2 PPV 4210439',
+            'FC2 PPV-4210439',
+            'FC2 4210439',
+            'FC2-4210439',
+            'MIDV-518'
         ]
         expected_output_list = [
-            {'content': 'Movie', 'name': 'The Frighteners', 'media': 'BluRay', 'year': '1996', 'resolution': '1080p', 'process_method': 'x265', 'process_type': 'Encode', 'team': 'c0kE'},
-            {'content': 'Movie', 'name': 'Mrs. Doubtfire', 'media': 'BluRay', 'year': '1993', 'resolution': '1080p', 'process_method': 'x264', 'process_type': 'Encode', 'team': 'Friday'},
-            {'content': 'Movie', 'name': 'The Talented Mr. Ripley', 'media': 'BluRay', 'year': '1999', 'resolution': '1080p', 'process_method': 'x264', 'process_type': 'Encode', 'team': 'HiDt'},
-            {'content': 'Movie', 'name': 'Aruitemo Aruitemo a.k.a. Still Walking', 'media': 'BluRay', 'year': '2008', 'resolution': '1080p', 'process_method': 'x264', 'process_type': 'Encode', 'team': 'LoRD'},
-            {'content': 'Movie', 'name': 'Lie with Me', 'media': 'BluRay', 'year': '2005', 'resolution': '1080i', 'process_method': 'MPEG-2', 'process_type': 'Raw', 'team': 'G00DB0Y'},
-            {'content': 'Movie', 'name': 'Yuru Camp Movie', 'media': 'BluRay', 'year': '2022', 'resolution': '2160p', 'process_method': 'H.265', 'process_type': 'Raw', 'team': 'Rainbaby'}
+            {'content': 'Movie', 'name': 'The Frighteners', 'media': 'BluRay', 'year': '1996', 'resolution': '1080p', 'process_method': 'x265', 'process_type': 'Encode', 'team': 'c0kE', 'producer': ''},
+            {'content': 'Movie', 'name': 'Mrs. Doubtfire', 'media': 'BluRay', 'year': '1993', 'resolution': '1080p', 'process_method': 'x264', 'process_type': 'Encode', 'team': 'Friday', 'producer': ''},
+            {'content': 'Movie', 'name': 'The Talented Mr. Ripley', 'media': 'BluRay', 'year': '1999', 'resolution': '1080p', 'process_method': 'H.265', 'process_type': 'Raw', 'team': 'HiDt', 'producer': ''},
+            {'content': 'Movie', 'name': 'Aruitemo Aruitemo a.k.a. Still Walking', 'media': 'BluRay', 'year': '2008', 'resolution': '1080p', 'process_method': 'H.264', 'process_type': 'Raw', 'team': 'LoRD', 'producer': ''},
+            {'content': 'Movie', 'name': 'Lie with Me', 'media': 'BluRay', 'year': '2005', 'resolution': '1080i', 'process_method': 'MPEG-2', 'process_type': 'Raw', 'team': 'G00DB0Y', 'producer': ''},
+            {'content': 'Movie', 'name': 'Yuru Camp Movie', 'media': 'BluRay', 'year': '2022', 'resolution': '2160p', 'process_method': 'H.265', 'process_type': 'Raw', 'team': 'Rainbaby', 'producer': ''},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'FC2'},
+            {'content': 'XXX', 'producer': 'JAV'}
         ]
         for i in range(len(input_list)):
             torrent_name = input_list[i]
             expected_output = expected_output_list[i]
-            tags = decode_torrent_tags(torrent_name)
+            tags = decode_torrent_tags(torrent_name, teams=[], tag_types=[], try_xxx=True)
             print(tags)
             self.assertEquals(tags, expected_output)
         

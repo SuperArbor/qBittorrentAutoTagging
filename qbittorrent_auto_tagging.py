@@ -21,13 +21,46 @@ TAGS = {
     'resolution': ['1080', '2160', '720']
 }
 
-def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[]) -> dict:
+def decode_torrent_tags_xxx(torrent_name:str, tag_types:list=[]) -> dict:
+    """decoding for xxx
+
+    Args:
+        torrent_name (str): torrent name
+        tag_types (list, optional): tag types specified to decode. Defaults to [].
+
+    Returns:
+        dict: decoded tags
+    """
+    tags = {'content': ''}
+    pattern_fc2 = r'fc2[ -](ppv[ -])?\d+'
+    pattern_jav = r'[a-zA-Z]+-\d+'
+    pattern_shiro = r'\d+[a-zA-Z]+-\d+'
+    content = ''
+    producer = ''
+    
+    if re.match(pattern_jav, torrent_name, re.IGNORECASE):
+        content = 'XXX'
+        producer = 'JAV'
+    elif re.match(pattern_fc2, torrent_name, re.IGNORECASE):
+        content = 'XXX'
+        producer = 'FC2'
+    elif re.match(pattern_shiro, torrent_name, re.IGNORECASE):
+        content = 'XXX'
+        producer = 'SHIRO'
+    
+    for tag_type in tag_types:
+        if tag_type in ['content', 'producer']:
+            tags.update({tag_type: eval(tag_type)})
+    return tags
+
+def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[], try_xxx:bool=False) -> dict:
     """Decode the torrent name for Movie or TV and returns tags
 
     Args:
         torrent_name (str): torrent name
         teams (list): teams in the buffer, used for some irregular torrent names
         tag_types (list): tag types specified to decode
+        try_xxx (bool): try to decode with xxx patterns
 
     Returns:
         dict: decoded tags
@@ -44,12 +77,14 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[]) -> d
         if len(groups_test) >= max(min_groups, current_best):
             current_best = len(groups_test)
             splitter = s
-    if not splitter:
-        return {'content': ''}
-    groups = torrent_name.split(splitter)
     
     if not tag_types:
-        tag_types = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+        tag_types = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team', 'producer']
+    if not splitter:
+        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {'content': ''}
+    
+    groups = torrent_name.split(splitter)
+    producer = ''
     
     media = ''
     resolution = ''
@@ -98,7 +133,7 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[]) -> d
             break
         
     if (not media) and (not resolution):
-        return {'content': ''}
+        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {'content': ''}
     
     # Handling team
     team = ''
@@ -123,32 +158,34 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[]) -> d
         for i in range(len(groups_lowered)):
             if i in marked:
                 continue
-            mat = re.match(r'(x26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
+            mat = re.match(r'(x26\d)|(h26\d)|(h\.?26\d)|(avc)|(hevc)|(xvid)|(divx)|(mpeg-2)', groups_lowered[i], re.IGNORECASE)
             if mat:
-                r = str.lower(mat.string)
-                if r.startswith('x26'):
-                    process_method = r
+                if mat.group(1):
+                    process_method = mat.group(1)
                     process_type = 'Encode'
-                elif r.startswith('h26') or r.startswith('h.26'):
-                    process_method = str.upper(r)
+                elif mat.group(2):
+                    process_method = f'H.{mat.group(2)[1:]}'
                     process_type = 'Raw'
-                elif r == 'avc':
+                elif mat.group(3):
+                    process_method = str.upper(mat.group(3))
+                    process_type = 'Raw'
+                elif mat.group(4):
                     process_method = 'H.264'
                     process_type = 'Raw'
-                elif r == 'hevc':
+                elif mat.group(5):
                     process_method = 'H.265'
                     process_type = 'Raw'
-                elif r == 'xvid':
+                elif mat.group(6):
                     process_method = 'XviD'
                     process_type = 'Encode'
-                elif r == 'divx':
+                elif mat.group(7):
                     process_method = 'DivX'
                     process_type = 'Encode'
-                elif r == 'mpeg-2':
+                elif mat.group(8):
                     process_method = 'MPEG-2'
                     process_type = 'Raw'
                 else:
-                    process_method = r
+                    process_method = ''
                     process_type = 'Encode'
                 marked.append(i)
                 break
@@ -224,7 +261,7 @@ def handle_torrent_tags_music(torrent:qbit.TorrentDictionary, tag_types:dict, ta
     return tags, tags_UI
 
 def handle_torrent_tags(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_reserve:list, teams:list, 
-                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[dict, dict]:
+                    overwrite:bool, update_tags:bool, delay_operation:bool=False, try_xxx:bool=False) -> tuple[dict, dict]:
     """Setting tags of a torrent by decoding the torrent name (for Movie and TV)
 
     Args:
@@ -235,12 +272,13 @@ def handle_torrent_tags(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_
         overwrite (bool): overwrite the existing tags when adding new ones
         update_tags (bool): update tags for torrent in the client
         delay_operation (bool): delay tagging operation, only return category and tags
+        try_xxx (bool): try to decode with xxx patterns
 
     Returns:
         tuple[dict, dict]: the tags and the tags to be shown in the client UI (with prefixes)
     """
     # note that tag_types should have been filtered 
-    tags = decode_torrent_tags(torrent.name, teams=teams, tag_types=[tag_type for tag_type in tag_types.keys()])
+    tags = decode_torrent_tags(torrent.name, teams=teams, tag_types=[tag_type for tag_type in tag_types.keys()], try_xxx=try_xxx)
     if tags:
         tags_UI = copy.copy(tags)
         for tag_type, tag_value in tags_UI.items():
@@ -337,7 +375,8 @@ def process_new(info_hash:str, config:dict, statistics:dict):
                         overwrite=overwrite, update_tags=update_tags, delay_operation=False)   
                 else:
                     handle_torrent_tags(torrent=torrent, tag_types=tag_types, tags_to_reserve=tags_to_reserve, 
-                        teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags, delay_operation=False)              
+                        teams=list(statistics_total['team'].keys()), overwrite=overwrite, 
+                        update_tags=update_tags, delay_operation=False, try_xxx='XXX' in trackers[category]['content'] if category else False)              
             else:
                 print(f'Torrent {torrent.name} in a tracker specified to ignore, skip tagging it')
     except qbit.LoginFailed as e:
@@ -403,7 +442,7 @@ def process_all(config:dict, statistics:dict) -> dict:
                     statistics_categories[category].update({tag_type: {t: 0 for t in statistics_total[tag_type].keys()}})
                 else:
                     statistics_categories[category].update({tag_type: {}})
-        elif tag_type == 'year':
+        elif tag_type == 'year' or tag_type == 'producer':
             statistics_total.update({tag_type: {}})   
             
             for category in statistics_categories.keys():
@@ -488,7 +527,8 @@ def process_all(config:dict, statistics:dict) -> dict:
                     overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
                 else:
                     tags, tags_UI = handle_torrent_tags(torrent=torrent, tag_types=tag_types, tags_to_reserve=tags_to_reserve, 
-                        teams=list(statistics_total['team'].keys()), overwrite=overwrite, update_tags=update_tags, delay_operation=delay_operation)
+                        teams=list(statistics_total['team'].keys()), overwrite=overwrite, 
+                        update_tags=update_tags, delay_operation=delay_operation, try_xxx='XXX' in trackers[category]['content'] if category else False)
                 # torrent_tags is used to update client UI, so tags_UI is passed in
                 if delay_operation:
                     torrent_tags.update({torrent.hash: tags_UI if tags_UI else {}})
