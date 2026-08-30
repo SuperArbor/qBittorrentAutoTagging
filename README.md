@@ -9,11 +9,11 @@
 * 脚本中针对tagging的功能对qBittorrent版本有要求，估计至少在4.2以上。而“新增Torrent时运行”选项只在qBittorrent4.6以上版本中有，在较早版本中只有“Torrent完成时运行”选项。
 * 仅测试过Windows10，其他操作系统请自行测试。
 * 如果你原本就用到了qBittorrent的tagging系统，请谨慎使用该脚本，以免覆盖原有标签（充分利用*config.yaml*中的*overwrite*和*tags_to_reserve*选项）。作者不对任何后果负责。
-* 依赖的库：*qbittorrent-api*, *PyYAML*，通过如下方法安装
+* 依赖的库：*qbittorrent-api*, *PyYAML*，推荐使用 UV 安装
 
 ```shell
-pip install qbittorrent-api
-pip install PyYAML
+uv sync
+uv tool install -e .
 ```
 
 ## 使用方法
@@ -176,7 +176,7 @@ TOTAL:
 ```shell
 # 需要替换真实的python.exe和qBittorrent_auto_tagging.py路径
 # 注意在系统中存在多个版本的python虚拟环境时，这里填写的python.exe必须是安装了依赖的虚拟环境对应的python路径
-path\to\python.exe path\to\script\qbittorrent_auto_tagging.py "%I"
+qbit-tag "%I"
 ```
 
 注意：在qBittorrent较早版本如4.3.9中，只能选“Torrent完成时运行”。 这种情况下，外部程序在正常下载完成时或Hash校验完成后触发，**如果采用跳过校验的方式添加种子，指令不触发**。
@@ -185,7 +185,7 @@ qBittorrent执行外部程序时，遇到问题不会报错。调试阶段可以
 
 ```shell
 # 最右边的字符串是新添加种子的hash值
-path\to\python.exe C:\xxx\qbittorrent_auto_tagging.py "a13685a7912e1cb0ed9ba7597abcb48eac9badd7"
+qbit-tag "a13685a7912e1cb0ed9ba7597abcb48eac9badd7"
 ```
 
 复制该指令到PowerShell终端运行，有助于借助脚本输出内容排查问题。

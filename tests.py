@@ -1,5 +1,7 @@
-import unittest, os
-from qbittorrent_auto_tagging import decode_torrent_tags, handle_torrent_tags, process_new, process_all
+import os
+import unittest
+
+from qbittorrent_auto_tagging import decode_torrent_tags
 
 current_dir = os.path.dirname(__file__)
 path_config = os.path.join(current_dir, 'config.yaml')
@@ -41,14 +43,14 @@ class TestAutoTaggingMethods(unittest.TestCase):
             expected_output = expected_output_list[i]
             tags = decode_torrent_tags(torrent_name, teams=[], tag_types=[], try_xxx=True)
             print(tags)
-            self.assertEquals(tags, expected_output)
+            self.assertEqual(tags, expected_output)
         
         # test irregular team
         torrent_name = 'Begin Again 2014 1080p BluRay x264 EbP'
         tags = decode_torrent_tags(torrent_name)
-        self.assertEquals(tags['team'], '')
+        self.assertEqual(tags['team'], '')
         tags = decode_torrent_tags(torrent_name, teams=['EbP'])
-        self.assertEquals(tags['team'], 'EbP')
+        self.assertEqual(tags['team'], 'EbP')
         
         # test with tag_types specified
         tag_types_all = ['content', 'name', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
@@ -57,5 +59,5 @@ class TestAutoTaggingMethods(unittest.TestCase):
         for comb in combinations:
             tag_types = [tag_types_all[i] for i in comb]
             tags = decode_torrent_tags(torrent_name, teams=[], tag_types=tag_types)
-            self.assertEquals(set(tags.keys()), set(tag_types))
+            self.assertEqual(set(tags.keys()), set(tag_types))
         
