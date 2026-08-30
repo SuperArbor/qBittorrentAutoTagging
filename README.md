@@ -3,12 +3,18 @@
 ## 相关说明
 
 * 脚本功能：
-  * (1)自动对 qBittorrent 中的 torrent 设置标签（按照内容、媒介、分辨率、压制组等）;  
-  * (2)运行全局任务后，根据分类和标签对 torrent 进行统计（在 *statistics.yaml* 中查看结果）。
+
+  * 自动对 qBittorrent 中的 torrent 设置标签（按照内容、媒介、分辨率、压制组等）;  
+  * 运行全局任务后，根据分类和标签对 torrent 进行统计（在 *statistics.yaml* 中查看结果）。
+
 * 基于命名规范程度，主要识别的内容为电影（*Movie*）和电视剧（*TV*），对于在 *config.yaml* 中设定为仅包含 *Music* 内容的 tracker，也会对相应种子赋予 *Music* 标签。
-* 脚本中针对 tagging 的功能对 qBittorrent 版本有要求，估计至少在 4.2 以上。而“新增 Torrent 时运行”选项只在 qBittorrent 4.6 以上版本中有，在较早版本中只有“Torrent 完成时运行”选项。
+
+* 脚本中针对 tagging 的功能对 qBittorrent 版本有要求，估计至少在 4.2 以上。而 “新增 Torrent 时运行” 选项只在 qBittorrent 4.6 以上版本中有，在较早版本中只有 “Torrent 完成时运行” 选项。
+
 * 仅测试过 Windows10，其他操作系统请自行测试。
+
 * 如果你原本就用到了 qBittorrent 的 tagging 系统，请谨慎使用该脚本，以免覆盖原有标签（充分利用 *config.yaml* 中的 *overwrite* 和 *tags_to_reserve* 选项）。作者不对任何后果负责。
+
 * 依赖的库：*qbittorrent-api*, *PyYAML*，推荐使用 UV 安装
 
 ```shell
@@ -178,13 +184,19 @@ TOTAL:
 qbit-tag "%I"
 ```
 
-注意：在 qBittorrent 较早版本如 4.3.9 中，只能选“Torrent 完成时运行”。 这种情况下，外部程序在正常下载完成时或 Hash 校验完成后触发，**如果采用跳过校验的方式添加种子，指令不触发**。
+注意，qBittorrent 中，触发 “添加新下载任务” 有三种方式：
 
-qBittorrent 执行外部程序时，遇到问题不会报错。调试阶段可以在 qBittorrent 的视图 > 日志处开启“显示”功能，在新出现的“执行日志”页面可以看到调用外部程序时的完整指令，如
+* 开始下载
+* 已在列表中的种子手动完成 Hash 校验
+* 下载时跳过校验
+
+较早版本如 4.3.9 中，只有 “Torrent 完成时运行”。 这种情况下，外部程序在正常下载完成时或 Hash 校验完成后触发，如果采用跳过校验的方式添加种子，指令不触发。
+
+qBittorrent 执行外部程序时，遇到问题不会报错。调试阶段可以在 qBittorrent 的视图 > 日志处开启 “显示” 功能，在新出现的 “执行日志” 页面可以看到调用外部程序时的完整指令，如
 
 ```shell
 # 最右边的字符串是新添加种子的hash值
 qbit-tag "a13685a7912e1cb0ed9ba7597abcb48eac9badd7"
 ```
 
-复制该指令到 PowerShell 终端运行，有助于借助脚本输出内容排查问题。
+复制该指令到 PowerShell 或 CMD 终端运行，有助于借助脚本输出内容排查问题。
