@@ -26,15 +26,15 @@ TAGS = {
     'resolution': ['1080', '2160', '720']
 }
 
-def decode_torrent_tags_xxx(torrent_name:str, tag_types:list) -> dict:
+def decode_torrent_tags_xxx(torrent_name:str, tag_types:list[str]) -> dict[str, str]:
     """decoding for xxx
 
     Args:
         torrent_name (str): torrent name
-        tag_types (list, optional): tag types specified to decode. Defaults to [].
+        tag_types (list[str]): tag types specified to decode.
 
     Returns:
-        dict: decoded tags
+        dict[str, str]: decoded tags
     """
     tags = {'content': ''}
     pattern_fc2 = r'fc2[ -](ppv[ -])?\d+'
@@ -58,17 +58,17 @@ def decode_torrent_tags_xxx(torrent_name:str, tag_types:list) -> dict:
             tags.update({tag_type: eval(tag_type)})
     return tags
 
-def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[], try_xxx:bool=False) -> dict:
+def decode_torrent_tags(torrent_name:str, teams:list[str], tag_types:list[str], try_xxx:bool=False) -> dict[str, str]:
     """Decode the torrent name for Movie or TV and returns tags
 
     Args:
         torrent_name (str): torrent name
-        teams (list): teams in the buffer, used for some irregular torrent names
-        tag_types (list): tag types specified to decode
+        teams (list[str]): teams in the buffer, used for some irregular torrent names
+        tag_types (list[str]): tag types specified to decode
         try_xxx (bool): try to decode with xxx patterns
 
     Returns:
-        dict: decoded tags
+        dict[str, str]: decoded tags
     """
     root, ext = os.path.splitext(torrent_name)
     if str.lower(ext) in EXTENTS:
@@ -215,8 +215,8 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[], try_
                     year = groups[i]
                     marked.append(i)
                     continue
-            except:
-                pass
+            except ValueError as e:
+                print(e)
             
         if not content:
             content = 'Movie'
@@ -233,20 +233,20 @@ def decode_torrent_tags(torrent_name:str, teams:list=[], tag_types:list=[], try_
     
     return tags
 
-def handle_torrent_tags_music(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_reserve:list, 
-                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[dict, dict]:
+def handle_torrent_tags_music(torrent:qbit.TorrentDictionary, tag_types:dict[str, str], tags_to_reserve:list[str], 
+                    overwrite:bool, update_tags:bool, delay_operation:bool=False) -> tuple[dict[str, str], dict[str, str]]:
     """Setting tags of a torrent by decoding the torrent name (for Movie and TV)
 
     Args:
         torrent (qbit.TorrentDictionary): the torrent to be handled
-        tag_types (dict): tag types to record
-        tags_to_reserve (list): tags to be reserved when clearing old tags
+        tag_types (dict[str, str]): tag types to record
+        tags_to_reserve (list[str]): tags to be reserved when clearing old tags
         overwrite (bool): overwrite the existing tags when adding new ones
         update_tags (bool): update tags for torrent in the client
         delay_operation (bool): delay tagging operation, only return category and tags
 
     Returns:
-        tuple[dict, dict]: the tags and the tags to be shown in the client UI (with prefixes)
+        tuple[dict[str, str], dict[str, str]]: the tags and the tags to be shown in the client UI (with prefixes)
     """
     # handle tags
     tags = {'content':'Music'}
@@ -265,22 +265,22 @@ def handle_torrent_tags_music(torrent:qbit.TorrentDictionary, tag_types:dict, ta
         
     return tags, tags_UI
 
-def handle_torrent_tags(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_reserve:list, teams:list, 
-                    overwrite:bool, update_tags:bool, delay_operation:bool=False, try_xxx:bool=False) -> tuple[dict, dict]:
+def handle_torrent_tags(torrent:qbit.TorrentDictionary, tag_types:dict[str, str], tags_to_reserve:list[str], teams:list[str], 
+                    overwrite:bool, update_tags:bool, delay_operation:bool=False, try_xxx:bool=False) -> tuple[dict[str, str], dict[str, str]]:
     """Setting tags of a torrent by decoding the torrent name (for Movie and TV)
 
     Args:
         torrent (qbit.TorrentDictionary): the torrent to be handled
-        tag_types (dict): tag types to record
-        tags_to_reserve (list): tags to be reserved when clearing old tags
-        teams (list): teams in buffer
+        tag_types (dict[str, str]): tag types to record
+        tags_to_reserve (list[str]): tags to be reserved when clearing old tags
+        teams (list[str]): teams in buffer
         overwrite (bool): overwrite the existing tags when adding new ones
         update_tags (bool): update tags for torrent in the client
         delay_operation (bool): delay tagging operation, only return category and tags
         try_xxx (bool): try to decode with xxx patterns
 
     Returns:
-        tuple[dict, dict]: the tags and the tags to be shown in the client UI (with prefixes)
+        tuple[dict[str, str], dict[str, str]]: the tags and the tags to be shown in the client UI (with prefixes)
     """
     # note that tag_types should have been filtered 
     tags = decode_torrent_tags(torrent.name, teams=teams, tag_types=[tag_type for tag_type in tag_types], try_xxx=try_xxx)
@@ -302,13 +302,13 @@ def handle_torrent_tags(torrent:qbit.TorrentDictionary, tag_types:dict, tags_to_
     else:
         return {}, {}    
 
-def process_new(info_hash:str, config:dict, statistics:dict):
+def process_new(info_hash:str, config:dict[str, str], statistics:dict[str, str]):
     """Process a new torrent with its info hash 
 
     Args:
         info_hash (str): the info hash, used for retrieving the specific torrent from the client
-        config (dict): configuration
-        statistics (dict): statistics read from a file
+        config (dict[str, str]): configuration
+        statistics (dict[str, str]): statistics read from a file
     """
     host, port, username, password = config['host'], config['port'], config['username'], config['password']
     conn_info = {'host': host, 'port': port, 'username': username, 'password': password,}
@@ -388,15 +388,15 @@ def process_new(info_hash:str, config:dict, statistics:dict):
         print(e)
     client.auth_log_out()
 
-def process_all(config:dict, statistics:dict) -> dict:
+def process_all(config:dict[str, str], statistics:dict[str, str]) -> dict[str, str]:
     """Process all the torrents in a client
 
     Args:
-        config (dict): configuration
-        statistics (dict): statistics read from a file
+        config (dict[str, str]): configuration
+        statistics (dict[str, str]): statistics read from a file
 
     Returns:
-        dict: the updated statistics
+        dict[str, str]: the updated statistics
     """
     host, port, username, password = config['host'], config['port'], config['username'], config['password']
     conn_info = {'host': host, 'port': port, 'username': username, 'password': password,}

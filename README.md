@@ -3,15 +3,16 @@
 ## 相关说明
 
 * 脚本功能：
-  * (1)自动对qBittorrent中的torrent设置标签（按照内容、媒介、分辨率、压制组等）;  
-  * (2)运行全局任务后，根据分类和标签对torrent进行统计（在*statistics.yaml*中查看结果）。
-* 基于命名规范程度，主要识别的内容为电影（*Movie*）和电视剧（*TV*），对于在*config.yaml*中设定为仅包含*Music*内容的tracker，也会对相应种子赋予*Music*标签。
-* 脚本中针对tagging的功能对qBittorrent版本有要求，估计至少在4.2以上。而“新增Torrent时运行”选项只在qBittorrent4.6以上版本中有，在较早版本中只有“Torrent完成时运行”选项。
-* 仅测试过Windows10，其他操作系统请自行测试。
-* 如果你原本就用到了qBittorrent的tagging系统，请谨慎使用该脚本，以免覆盖原有标签（充分利用*config.yaml*中的*overwrite*和*tags_to_reserve*选项）。作者不对任何后果负责。
+  * (1)自动对 qBittorrent 中的 torrent 设置标签（按照内容、媒介、分辨率、压制组等）;  
+  * (2)运行全局任务后，根据分类和标签对 torrent 进行统计（在 *statistics.yaml* 中查看结果）。
+* 基于命名规范程度，主要识别的内容为电影（*Movie*）和电视剧（*TV*），对于在 *config.yaml* 中设定为仅包含 *Music* 内容的 tracker，也会对相应种子赋予 *Music* 标签。
+* 脚本中针对 tagging 的功能对 qBittorrent 版本有要求，估计至少在 4.2 以上。而“新增 Torrent 时运行”选项只在 qBittorrent 4.6 以上版本中有，在较早版本中只有“Torrent 完成时运行”选项。
+* 仅测试过 Windows10，其他操作系统请自行测试。
+* 如果你原本就用到了 qBittorrent 的 tagging 系统，请谨慎使用该脚本，以免覆盖原有标签（充分利用 *config.yaml* 中的 *overwrite* 和 *tags_to_reserve* 选项）。作者不对任何后果负责。
 * 依赖的库：*qbittorrent-api*, *PyYAML*，推荐使用 UV 安装
 
 ```shell
+cd qbit-tag
 uv sync
 uv tool install -e .
 ```
@@ -20,16 +21,16 @@ uv tool install -e .
 
 ### 设置
 
-在根目录下创建*config.yaml*文件，格式参考*config.yaml.temp*。
+在根目录下创建 *config.yaml* 文件，格式参考 *config.yaml.temp*。
 
 ```yaml
-# qBittorrent所在主机的ip，以及qBittorrent WebUI的监听端口，在qBittorrent的设置 > WebUI中设置
+# qBittorrent 所在主机的 ip，以及 qBittorrent WebUI 的监听端口，在 qBittorrent 的设置 > WebUI中设置
 host: localhost
 port: 8080
-# qBittorrent的webui的用户名、密码，在qBittorrent的设置 > WebUI > 验证中手动设置用户名和密码后，才能远程登陆，默认密码不一定能用
+# qBittorrent 的 webui 的用户名、密码，在 qBittorrent 的设置 > WebUI > 验证中手动设置用户名和密码后，才能远程登陆，默认密码不一定能用
 username: admin
 password: admin
-# 创建新的tag时是否清除已有标签
+# 创建新的 tag 时是否清除已有标签
 overwrite: true
 # 定义标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
 tag_types:
@@ -69,7 +70,7 @@ tag_types:
 tags_to_reserve:
   - ★Save
   - ★Post
-# 定义各个trackers的特性
+# 定义各个 trackers 的特性
 trackers:
   NHD: 
     url_key: nexushd    # key word in tracker url
@@ -85,11 +86,11 @@ trackers:
 
 使用分为两种场景：
 
-#### 一次性识别qBittorrent客户端中现有种子
+#### 一次性识别 qBittorrent 客户端中现有种子
 
-在设置了*config.yaml*的基础上，直接运行*qbittorrent_auto_tagging.py*文件即可（实际调用脚本中的*process_all*方法）。
+在设置了 *config.yaml* 的基础上，直接运行 *qbit-tag* 即可（实际调用脚本中的 *process_all* 方法）。
 
-在这个情况下，还可以通过设置*update_statistics*开启数据统计，结果记录在*statistics.yaml*中，包括分类统计(*CATEGORIES*)和全局统计(*TOTAL*)两部分，格式如下（不被识别的tag标记为"*?*"）
+在这个情况下，还可以通过设置 *update_statistics* 开启数据统计，结果记录在 *statistics.yaml* 中，包括分类统计 (*CATEGORIES*) 和全局统计 (*TOTAL*) 两部分，格式如下（不被识别的 tag 标记为 "*?*"）
 
 ```yaml
 CATEGORIES:
@@ -171,21 +172,19 @@ TOTAL:
 
 #### 识别新添加的种子
 
-在设置了*config.yaml*的基础上，勾选qBittorrent设置 > 下载 > 运行外部程序 > 新增Torrent时运行，在添加新下载任务后，自动触发调用脚本中的*process_new*方法。在该设置UI处，填写命令行指令
+在设置了 *config.yaml* 的基础上，勾选 qBittorrent 设置 > 下载 > 运行外部程序 > 新增 Torrent 时运行，在添加新下载任务后，自动触发调用脚本中的 *process_new* 方法。在该设置 UI 处，填写命令行指令
 
 ```shell
-# 需要替换真实的python.exe和qBittorrent_auto_tagging.py路径
-# 注意在系统中存在多个版本的python虚拟环境时，这里填写的python.exe必须是安装了依赖的虚拟环境对应的python路径
 qbit-tag "%I"
 ```
 
-注意：在qBittorrent较早版本如4.3.9中，只能选“Torrent完成时运行”。 这种情况下，外部程序在正常下载完成时或Hash校验完成后触发，**如果采用跳过校验的方式添加种子，指令不触发**。
+注意：在 qBittorrent 较早版本如 4.3.9 中，只能选“Torrent 完成时运行”。 这种情况下，外部程序在正常下载完成时或 Hash 校验完成后触发，**如果采用跳过校验的方式添加种子，指令不触发**。
 
-qBittorrent执行外部程序时，遇到问题不会报错。调试阶段可以在qBittorrent的视图 > 日志处开启“显示”功能，在新出现的“执行日志”页面可以看到调用外部程序时的完整指令，如
+qBittorrent 执行外部程序时，遇到问题不会报错。调试阶段可以在 qBittorrent 的视图 > 日志处开启“显示”功能，在新出现的“执行日志”页面可以看到调用外部程序时的完整指令，如
 
 ```shell
 # 最右边的字符串是新添加种子的hash值
 qbit-tag "a13685a7912e1cb0ed9ba7597abcb48eac9badd7"
 ```
 
-复制该指令到PowerShell终端运行，有助于借助脚本输出内容排查问题。
+复制该指令到 PowerShell 终端运行，有助于借助脚本输出内容排查问题。
