@@ -26,7 +26,7 @@ TAGS = {
     'resolution': ['1080', '2160', '720']
 }
 
-def decode_torrent_tags_xxx(torrent_name:str, tag_types:list=[]) -> dict:
+def decode_torrent_tags_xxx(torrent_name:str, tag_types:list) -> dict:
     """decoding for xxx
 
     Args:
