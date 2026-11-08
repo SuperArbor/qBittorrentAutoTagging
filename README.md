@@ -1,202 +1,194 @@
-# README
+# qtag
 
-## 相关说明
+为 qBittorrent 中的种子自动设置分类与标签，并可按分类/标签做统计。
 
-* 脚本功能：
+## 功能
 
-  * 自动对 qBittorrent 中的 torrent 设置标签（按照内容、媒介、分辨率、压制组等）;  
-  * 运行全局任务后，根据分类和标签对 torrent 进行统计（在 *statistics.yaml* 中查看结果）。
+- 按 tracker 设置 qBittorrent **分类**
+- 按内容、媒介、分辨率、压制组等设置 **标签**
+- 一次性处理客户端中的全部种子，或在添加新种子时处理单个 hash
+- 全局任务可将统计写入 `statistics.yaml`
 
-* 基于命名规范程度，主要识别的内容为电影（*Movie*）和电视剧（*TV*），对于在 *config.yaml* 中设定为仅包含 *Music* 内容的 tracker，也会对相应种子赋予 *Music* 标签。
+识别策略按 tracker 的 `content` 分流：
 
-* 脚本中针对 tagging 的功能对 qBittorrent 版本有要求，估计至少在 4.2 以上。而 “新增 Torrent 时运行” 选项只在 qBittorrent 4.6 以上版本中有，在较早版本中只有 “Torrent 完成时运行” 选项。
+| tracker `content` | 识别方式 |
+| --- | --- |
+| 空（默认） | 按种子名识别 Movie / TV |
+| `['Music']` | 不解析文件名，直接打 `Music` |
+| 含 `XXX` | 片名规则之外，再用 FC2 / JAV 等编号匹配 |
+| `['Ebook', 'Audiobook']` | 看种子**文件扩展名**（MAM） |
 
-* 仅测试过 Windows10，其他操作系统请自行测试。
+Ebook / Audiobook 会忽略封面、cue、nfo 等附属文件。同一本书的 epub + mobi/azw 仍算 Ebook；分轨 mp3 / 单个 m4b 都算 Audiobook。两种内容文件同时出现时，**优先 Audiobook**。Comic Book、Manga、Radio、Musicology 暂不单独识别。
 
-* 如果你原本就用到了 qBittorrent 的 tagging 系统，请谨慎使用该脚本，以免覆盖原有标签（充分利用 *config.yaml* 中的 *overwrite* 和 *tags_to_reserve* 选项）。作者不对任何后果负责。
+## 要求
 
-* 依赖的库：*qbittorrent-api*, *PyYAML*，推荐使用 UV 安装
+- Python 3.11–3.14（3.15 上 PyYAML 还没有预编译包，安装时会被 Windows 智能应用控制拦截）
+- qBittorrent WebUI 已开启（tagging 大约需要 4.2+；「新增 Torrent 时运行」需要 4.6+）
+- 如果你本来就在用 qBittorrent 的标签系统，请先看配置里的 `overwrite` 和 `tags_to_reserve`，避免覆盖已有标签
+
+## 安装
+
+推荐用 [uv](https://docs.astral.sh/uv/)：
 
 ```shell
-cd qbit-tag
-uv sync
-uv tool install -e .
+cd qBittorrentAutoTagging
+uv tool install --python 3.14 .
 ```
 
-## 使用方法
+开发时用可编辑安装：
 
-### 设置
+```shell
+uv tool install --python 3.14 -e .
+```
 
-在根目录下创建 *config.yaml* 文件，格式参考 *config.yaml.temp*。
+Windows 若开着 **智能应用控制（Smart App Control）**，`qtag.exe` 会被拦截。不要走被拦截的 exe，改用工具环境里的 Python：
+
+```bat
+%APPDATA%\uv\tools\qtag\Scripts\python.exe -m qtag --version
+```
+
+仓库里的 `qtag.cmd` 就是这一层包装，qBittorrent 外挂也可以直接填它的完整路径。
+
+智能应用控制的开关不在微软那篇说明网页上，而在系统里：
+
+1. 开始菜单搜索并打开 **Windows 安全中心**
+2. **应用和浏览器控制**
+3. **智能应用控制**（英文界面是 Smart App Control）
+
+也可以在开始菜单直接搜「智能应用控制」。不必为了安装去关它；用上面的 `python.exe -m qtag` 即可。
+
+## 配置
+
+配置文件不在项目目录，而在系统用户配置目录：
+
+| 系统 | 路径 |
+| --- | --- |
+| Windows | `%APPDATA%\qtag\`（Roaming） |
+| Linux | `$XDG_CONFIG_HOME/qtag/` 或 `~/.config/qtag/` |
+| macOS | `~/Library/Application Support/qtag/` |
+
+其中：
+
+- `config.yaml`：连接信息、标签规则、tracker 列表
+- `statistics.yaml`：全局统计（首次运行时自动创建）
+
+没有配置时，直接运行 `qtag` 会写出模板并退出。也可以显式生成：
+
+```shell
+qtag --init
+qtag --init --config-dir D:\path\to\qtag
+```
+
+完整示例见仓库里的 `config.yaml.temp`。常用字段：
 
 ```yaml
-# qBittorrent 所在主机的 ip，以及 qBittorrent WebUI 的监听端口，在 qBittorrent 的设置 > WebUI中设置
 host: localhost
 port: 8080
-# qBittorrent 的 webui 的用户名、密码，在 qBittorrent 的设置 > WebUI > 验证中手动设置用户名和密码后，才能远程登陆，默认密码不一定能用
 username: admin
 password: admin
-# 创建新的 tag 时是否清除已有标签
 overwrite: true
-# 定义标签类型，可选的标签类型范围 TAGS_ALL = ['content', 'media', 'year', 'resolution', 'process_method', 'process_type', 'team']
+update_statistics: true
+update_tags: true
 tag_types:
-  content:              # Movie, TV, Music
-    prefix: '#'         # the prefix to decorate before the tag
-    max_number: -1      # max number of instances to keep under this tag type
-    ignore: false       # whether to ignore the tag type or not when tagging
-  media:                # BluRay, DVD, HDTV, WEB
+  content:              # Movie, TV, Music, XXX, Ebook, Audiobook
+    prefix: '#'
+    max_number: -1
+    ignore: false
+  media:
     prefix: '$'
     max_number: -1
     ignore: false
-  resolution:           # 720p/i, 1080p/i, 2160p/i 
-    prefix: ''
-    max_number: -1
-    ignore: false
-  team:                 # Author of the Encode
-    prefix: '-'
-    max_number: 2
-    ignore: false
-  process_type:         # Encode, Raw
-    prefix: '~'
-    max_number: -1
-    ignore: true
-  process_method:       # H264/H265, x264/x265
-    prefix: ''
-    max_number: -1
-    ignore: true
-  year:                 # year when the workpiece was produced
-    prefix: ''
-    max_number: 3
-    ignore: true
-  producer:
-    prefix: '*'
-    max_number: -1
-    ignore: false
-# 更新标签时保留的标签内容
-tags_to_reserve:
-  - ★Save
-  - ★Post
-# 定义各个 trackers 的特性
 trackers:
-  NHD: 
-    url_key: nexushd    # key word in tracker url
-    ignore: false       # whether to ignore the tracker or not when tagging
-    content:            # specify content types in the tracker
-  PuTao: 
-    url_key: sjtu
+  NHD:
+    url_key: nexushd
     ignore: false
     content:
+  OpenCD:
+    url_key: open.cd
+    ignore: false
+    content:
+      - Music
+  MAM:
+    url_key: myanonamouse
+    ignore: false
+    content:
+      - Ebook
+      - Audiobook
 ```
 
-### 使用
+`url_key` 是 announce URL 里的关键词。MAM 一般是 `t.myanonamouse.net`，所以用 `myanonamouse`。
 
-使用分为两种场景：
+## 使用
 
-#### 一次性识别 qBittorrent 客户端中现有种子
+### 处理客户端中现有种子
 
-在设置了 *config.yaml* 的基础上，直接运行 *qbit-tag* 即可（实际调用脚本中的 *process_all* 方法）。
+```shell
+qtag
+```
 
-在这个情况下，还可以通过设置 *update_statistics* 开启数据统计，结果记录在 *statistics.yaml* 中，包括分类统计 (*CATEGORIES*) 和全局统计 (*TOTAL*) 两部分，格式如下（不被识别的 tag 标记为 "*?*"）
+会调用 `process_all`。若 `update_statistics` 为 true，结果写入配置目录下的 `statistics.yaml`，包括分类统计 (`CATEGORIES`) 和全局统计 (`TOTAL`)。无法识别的 content 记为 `?`。
 
 ```yaml
 CATEGORIES:
   NHD:
     content:
-      '?': 12
       Movie: 1075
       TV: 100
-    media:
-      '?': 5
-      BluRay: 1030
-      DVD: 3
-      HDTV: 0
-      WEB: 137
-    resolution:
-      1080p: 1056
-      2160p: 9
-      720p: 103
-      '?': 7
-    team:
-      0LED: 1
-      '147': 2
-      7SinS: 1
-      '?': 11
-      A: 1
-      ADE: 2
-      ADWeb: 3
-      AREY: 4
-      ARiN: 3
-      ...
-  PuTao:
+  MAM:
     content:
-      '?': 3
-      Movie: 330
-      TV: 17
-    media:
-      '?': 2
-      BluRay: 313
-      DVD: 0
-      HDTV: 0
-      WEB: 32
-    resolution:
-      1080p: 329
-      2160p: 0
-      720p: 18
-    team:
-      '?': 3
-      A: 1
-      ADE: 1
-      AREY: 1
-      BMF: 8
-      CALiGARi: 1
-      ...
+      Ebook: 80
+      Audiobook: 40
 TOTAL:
   content:
-    '?': 375
     Movie: 4736
-    TV: 228
-  media:
-    '?': 21
-    BluRay: 4638
-    DVD: 9
-    HDTV: 1
-    WEB: 295
-  resolution:
-    1080p: 4601
-    2160p: 24
-    720p: 326
-    '?': 13
-  team:
-    0LED: 5
-    '147': 5
-    7SinS: 1
-    '?': 34
-    A: 6
-    ADE: 6
-    ...
+    Ebook: 80
+    Audiobook: 40
 ```
 
-#### 识别新添加的种子
+### 新添加的种子
 
-在设置了 *config.yaml* 的基础上，勾选 qBittorrent 设置 > 下载 > 运行外部程序 > 新增 Torrent 时运行，在添加新下载任务后，自动触发调用脚本中的 *process_new* 方法。在该设置 UI 处，填写命令行指令
+在 qBittorrent 设置 > 下载 > 运行外部程序 > **新增 Torrent 时运行**，填写：
 
 ```shell
-qbit-tag "%I"
+qtag "%I"
 ```
 
-注意，qBittorrent 中，触发 “添加新下载任务” 有三种方式：
+若 `qtag.exe` 被智能应用控制拦截，改填（把路径换成你的仓库位置）：
 
-* 开始下载
-* 已在列表中的种子手动完成 Hash 校验
-* 下载时跳过校验
+```bat
+C:\Users\arbor\repos\qBittorrentAutoTagging\qtag.cmd "%I"
+```
 
-较早版本如 4.3.9 中，只有 “Torrent 完成时运行”。 这种情况下，外部程序在正常下载完成时或 Hash 校验完成后触发，如果采用跳过校验的方式添加种子，指令不触发。
+或：
 
-qBittorrent 执行外部程序时，遇到问题不会报错。调试阶段可以在 qBittorrent 的视图 > 日志处开启 “显示” 功能，在新出现的 “执行日志” 页面可以看到调用外部程序时的完整指令，如
+```bat
+%APPDATA%\uv\tools\qtag\Scripts\python.exe -m qtag "%I"
+```
+
+`%I` 是种子 hash。触发「添加新下载任务」通常包括：开始下载、手动完成 Hash 校验、下载时跳过校验。较早版本（如 4.3.9）只有「Torrent 完成时运行」；跳过校验添加的种子不会触发。
+
+磁链刚加入、元数据尚未下载时，MAM 可能还看不到文件列表，这时 content 会暂时无法识别。元数据齐了之后再跑一次 `qtag` 即可。
+
+qBittorrent 调用外部程序失败时不一定弹窗。调试可在 视图 > 日志 打开「显示」，在「执行日志」里看完整命令，复制到终端运行：
 
 ```shell
-# 最右边的字符串是新添加种子的hash值
-qbit-tag "a13685a7912e1cb0ed9ba7597abcb48eac9badd7"
+qtag "a13685a7912e1cb0ed9ba7597abcb48eac9badd7"
 ```
 
-复制该指令到 PowerShell 或 CMD 终端运行，有助于借助脚本输出内容排查问题。
+### 其它命令
+
+```shell
+qtag --help
+qtag --version
+qtag -v                  # 调试日志
+qtag --config-dir PATH   # 使用指定配置目录
+```
+
+## 开发
+
+```shell
+uv sync --group dev
+uv run pytest
+uv run ruff check src tests
+uv run ruff format src tests
+```

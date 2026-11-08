@@ -1,3 +1,10 @@
 *.pyc
-*.yaml
+config.yaml
+statistics.yaml
 .vscode/
+__pycache__/
+.venv/
+dist/
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
