@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from qtag.config import default_config_dir, default_config_text, prepare_runtime, write_default_config
 from qtag.tagging import DEFAULT_TRACKER_MEDIA
 
@@ -27,6 +29,8 @@ def test_default_config_contains_mam():
     assert "codec:" not in text
     assert "format:" in text
     assert "process:" in text
+    assert "patterns:" in text
+    assert "FC2:" in text
 
 
 def test_write_default_config(tmp_path: Path):
@@ -86,3 +90,39 @@ def test_prepare_runtime_team_special():
     assert runtime["auto_tags"]["team"]["special"] == ["D-Z0N3"]
     runtime = prepare_runtime({"auto_tags": {"team": {"prefix": "-"}}})
     assert runtime["auto_tags"]["team"]["special"] == []
+
+
+def test_prepare_runtime_producer_patterns():
+    runtime = prepare_runtime(
+        {
+            "auto_tags": {
+                "producer": {
+                    "when": ["XXX"],
+                    "patterns": [{"FC2": r"fc2[ -](ppv[ -])?\d+"}, {"JAV": r"[a-zA-Z]+-\d+"}],
+                }
+            }
+        }
+    )
+    patterns = runtime["auto_tags"]["producer"]["patterns"]
+    assert [name for name, _ in patterns] == ["FC2", "JAV"]
+    assert patterns[0][1].match("FC2-4210439")
+    assert patterns[1][1].match("MIDV-518")
+
+
+def test_prepare_runtime_ignores_producer():
+    runtime = prepare_runtime(
+        {"auto_tags": {"producer": {"ignore": True, "patterns": [{"JAV": r".+"}]}}}
+    )
+    assert "producer" not in runtime["auto_tags"]
+
+
+def test_prepare_runtime_empty_producer_patterns():
+    runtime = prepare_runtime({"auto_tags": {"producer": {"when": ["XXX"]}}})
+    assert runtime["auto_tags"]["producer"]["patterns"] == []
+
+
+def test_prepare_runtime_bad_producer_pattern():
+    with pytest.raises(ValueError, match="invalid producer pattern"):
+        prepare_runtime({"auto_tags": {"producer": {"patterns": [{"FC2": "("}]}}})
+    with pytest.raises(ValueError, match="single"):
+        prepare_runtime({"auto_tags": {"producer": {"patterns": ["FC2"]}}})

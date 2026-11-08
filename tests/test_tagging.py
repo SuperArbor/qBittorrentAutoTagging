@@ -3,11 +3,20 @@ import unittest
 from qtag.tagging import (
     classify_format_by_files,
     classify_media_by_files,
+    compile_producer_patterns,
     decode_torrent_tags,
     filter_by_when,
     prefix_tags,
     prune_statistics,
     tagging_strategy,
+)
+
+XXX_PATTERNS = compile_producer_patterns(
+    [
+        {"FC2": r"fc2[ -]?(ppv[ -])?\d+"},
+        {"JAV": r"[a-zA-Z]+-\d+"},
+        {"SHIRO": r"\d+[a-zA-Z]+-\d+"},
+    ]
 )
 
 
@@ -22,10 +31,13 @@ class TestDecodeTorrentTags(unittest.TestCase):
             "Yuru.Camp.Movie.2022.2160p.BDrip.HEVC.DV.DDP7.1.Binaural.AAC-Rainbaby",
             "FC2-PPV-4210439",
             "FC2 PPV 4210439",
+            "FC2PPV 4210439",
+            "FC2PPV-4210439",
             "FC2 PPV-4210439",
             "FC2 4210439",
             "FC2-4210439",
             "MIDV-518",
+            "259LUXU-001",
         ]
         expected_output_list = [
             {
@@ -99,11 +111,29 @@ class TestDecodeTorrentTags(unittest.TestCase):
             {"media": "XXX", "producer": "FC2"},
             {"media": "XXX", "producer": "FC2"},
             {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "FC2"},
             {"media": "XXX", "producer": "JAV"},
+            {"media": "XXX", "producer": "SHIRO"},
         ]
         for torrent_name, expected_output in zip(input_list, expected_output_list, strict=True):
-            tags = decode_torrent_tags(torrent_name, teams=[], tag_types=[], try_xxx=True)
+            tags = decode_torrent_tags(
+                torrent_name,
+                teams=[],
+                tag_types=[],
+                try_xxx=True,
+                producer_patterns=XXX_PATTERNS,
+            )
             self.assertEqual(tags, expected_output)
+
+    def test_xxx_skipped_without_try_xxx(self):
+        tags = decode_torrent_tags("MIDV-518", try_xxx=False, producer_patterns=XXX_PATTERNS)
+        self.assertEqual(tags, {"media": ""})
+
+    def test_xxx_skipped_without_patterns(self):
+        tags = decode_torrent_tags("MIDV-518", try_xxx=True)
+        self.assertEqual(tags["media"], "")
+        self.assertEqual(tags.get("producer", ""), "")
 
     def test_irregular_team(self):
         torrent_name = "Begin Again 2014 1080p BluRay x264 EbP"

@@ -86,13 +86,14 @@ def tags_for_torrent(
         if media in FILE_MEDIA and "format" in auto_tags:
             tags["format"] = classify_format_by_files(torrent_file_names(torrent))
         return tags
-    try_xxx = bool(category) and "XXX" in trackers[category]["media"]
+    try_xxx = bool(category) and "XXX" in trackers[category]["media"] and "producer" in auto_tags
     return decode_torrent_tags(
         torrent.name,
         teams=teams,
         tag_types=list(auto_tags),
         try_xxx=try_xxx,
         special_teams=list((auto_tags.get("team") or {}).get("special") or []),
+        producer_patterns=list((auto_tags.get("producer") or {}).get("patterns") or []),
     )
 
 

@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 from platformdirs import user_config_dir
 
-from qtag.tagging import DEFAULT_TRACKER_MEDIA, TAGS
+from qtag.tagging import DEFAULT_TRACKER_MEDIA, TAGS, compile_producer_patterns
 
 APP_NAME = "qtag"
 CONFIG_FILENAME = "config.yaml"
@@ -60,6 +60,8 @@ def prepare_runtime(config: dict[str, Any]) -> dict[str, Any]:
         if name == "team":
             special = spec.get("special") or []
             spec["special"] = [special] if isinstance(special, str) else [str(item) for item in special]
+        if name == "producer":
+            spec["patterns"] = compile_producer_patterns(spec.get("patterns"))
 
     trackers = {name: dict(spec) for name, spec in (config.get("trackers") or {}).items()}
     for spec in trackers.values():

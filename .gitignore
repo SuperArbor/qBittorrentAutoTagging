@@ -1,6 +1,8 @@
 *.pyc
 config.yaml
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 __pycache__/
 .venv/
 dist/

@@ -41,6 +41,9 @@ auto_tags:
   producer:
     prefix: '*'
     when: [XXX]
+    patterns:           # 从上到下第一条命中则 media=XXX 且打该 producer；ignore 时不识别 XXX
+      - FC2: 'fc2[ -]?(ppv[ -])?\d+'
+      - JAV: '[a-zA-Z]+-\d+'
 # 手动添加的 tag，运行 qtag 时不会被自动移除
 manual_tags:
   - ★Save

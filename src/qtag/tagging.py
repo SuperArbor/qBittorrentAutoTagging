@@ -324,18 +324,34 @@ def prefix_tags(tags: dict[str, str], auto_tags: dict[str, dict]) -> dict[str, s
     return tags_ui
 
 
-def decode_torrent_tags_xxx(torrent_name: str, tag_types: list[str]) -> dict[str, str]:
+def compile_producer_patterns(patterns: list | None) -> list[tuple[str, re.Pattern[str]]]:
+    """Compile `producer.patterns`: a list of single-key `{name: regex}` mappings."""
+    compiled: list[tuple[str, re.Pattern[str]]] = []
+    for item in patterns or []:
+        if not isinstance(item, dict) or len(item) != 1:
+            raise ValueError("producer.patterns items must be a single {name: regex} mapping")
+        name, pattern = next(iter(item.items()))
+        if not isinstance(pattern, str):
+            raise ValueError(f"producer pattern for {name} must be a regex string")
+        try:
+            compiled.append((str(name), re.compile(pattern, re.IGNORECASE)))
+        except re.error as exc:
+            raise ValueError(f"invalid producer pattern for {name}: {exc}") from exc
+    return compiled
+
+
+def decode_torrent_tags_xxx(
+    torrent_name: str,
+    tag_types: list[str],
+    producer_patterns: list[tuple[str, re.Pattern[str]]],
+) -> dict[str, str]:
     media = ""
     producer = ""
-    if re.match(r"[a-zA-Z]+-\d+", torrent_name, re.IGNORECASE):
-        media = "XXX"
-        producer = "JAV"
-    elif re.match(r"fc2[ -](ppv[ -])?\d+", torrent_name, re.IGNORECASE):
-        media = "XXX"
-        producer = "FC2"
-    elif re.match(r"\d+[a-zA-Z]+-\d+", torrent_name, re.IGNORECASE):
-        media = "XXX"
-        producer = "SHIRO"
+    for name, pattern in producer_patterns:
+        if pattern.match(torrent_name):
+            media = "XXX"
+            producer = name
+            break
 
     decoded = {"media": media, "producer": producer}
     return {tag_type: decoded[tag_type] for tag_type in tag_types if tag_type in decoded}
@@ -347,10 +363,12 @@ def decode_torrent_tags(
     tag_types: list[str] | None = None,
     try_xxx: bool = False,
     special_teams: list[str] | None = None,
+    producer_patterns: list[tuple[str, re.Pattern[str]]] | None = None,
 ) -> dict[str, str]:
     """Decode a Movie/TV torrent name into tags."""
     teams = teams or []
     special_teams = special_teams or []
+    producer_patterns = producer_patterns or []
     if not tag_types:
         tag_types = list(DEFAULT_TAG_TYPES)
 
@@ -366,7 +384,11 @@ def decode_torrent_tags(
             splitter = candidate
 
     if not splitter:
-        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {"media": ""}
+        return (
+            decode_torrent_tags_xxx(torrent_name, tag_types, producer_patterns)
+            if try_xxx
+            else {"media": ""}
+        )
 
     groups = torrent_name.split(splitter)
     producer = ""
@@ -404,7 +426,11 @@ def decode_torrent_tags(
                 break
 
     if (not source) and (not resolution):
-        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {"media": ""}
+        return (
+            decode_torrent_tags_xxx(torrent_name, tag_types, producer_patterns)
+            if try_xxx
+            else {"media": ""}
+        )
 
     team = ""
     if "team" in tag_types:
