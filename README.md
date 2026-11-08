@@ -10,7 +10,7 @@ uv tool install .
 
 开发：`uv tool install -e .`
 
-需要 Python 3.11+，以及已开启的 qBittorrent WebUI（tagging 约 4.2+；「新增 Torrent 时运行」需 4.6+）。若你已在用客户端自带标签，请先看配置里的 `overwrite` 和 `tags_to_reserve`。
+需要 Python 3.11–3.14，以及已开启的 qBittorrent WebUI（tagging 约 4.2+；「新增 Torrent 时运行」需 4.6+）。若你已在用客户端自带标签，请先看配置里的 `overwrite` 和 `tags_to_reserve`。
 
 ## 配置
 
