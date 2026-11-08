@@ -11,8 +11,9 @@ from qtag.config import prepare_runtime
 from qtag.tagging import (
     TAGS,
     UNKNOWN_TAG,
-    classify_content_by_files,
+    classify_media_by_files,
     decode_torrent_tags,
+    filter_by_when,
     prefix_tags,
     tagging_strategy,
 )
@@ -21,11 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 def _connect(config: dict[str, Any]) -> qbit.Client:
+    qbt = config["qbittorrent"]
     return qbit.Client(
-        host=config["host"],
-        port=config["port"],
-        username=config["username"],
-        password=config["password"],
+        host=qbt["host"],
+        port=qbt["port"],
+        username=qbt["username"],
+        password=qbt["password"],
     )
 
 
@@ -50,14 +52,12 @@ def match_category(tracker_urls: list[str], trackers: dict[str, dict]) -> str:
 def write_torrent_tags(
     torrent: qbit.TorrentDictionary,
     tags_ui: dict[str, str],
-    tags_to_reserve: list[str],
-    overwrite: bool,
+    manual_tags: list[str],
 ) -> None:
-    if overwrite:
-        current_tags = [tag.strip() for tag in torrent["tags"].split(",") if tag.strip()]
-        to_remove = [tag for tag in current_tags if tag not in tags_to_reserve]
-        if to_remove:
-            torrent.remove_tags(to_remove)
+    current_tags = [tag.strip() for tag in torrent["tags"].split(",") if tag.strip()]
+    to_remove = [tag for tag in current_tags if tag not in manual_tags]
+    if to_remove:
+        torrent.remove_tags(to_remove)
     to_add = [tag for tag in tags_ui.values() if tag]
     if to_add:
         torrent.add_tags(to_add)
@@ -68,20 +68,20 @@ def tags_for_torrent(
     torrent: qbit.TorrentDictionary,
     category: str,
     trackers: dict[str, dict],
-    tag_types: dict[str, dict],
+    auto_tags: dict[str, dict],
     teams: list[str],
 ) -> dict[str, str]:
-    content_types = trackers[category]["content"] if category else None
-    strategy = tagging_strategy(content_types)
+    media_types = trackers[category]["media"] if category else None
+    strategy = tagging_strategy(media_types)
     if strategy == "music":
-        return {"content": "Music"}
+        return {"media": "Music"}
     if strategy == "files":
-        return {"content": classify_content_by_files(torrent_file_names(torrent), torrent.name)}
-    try_xxx = bool(category) and "XXX" in trackers[category]["content"]
+        return {"media": classify_media_by_files(torrent_file_names(torrent), torrent.name)}
+    try_xxx = bool(category) and "XXX" in trackers[category]["media"]
     return decode_torrent_tags(
         torrent.name,
         teams=teams,
-        tag_types=list(tag_types),
+        tag_types=list(auto_tags),
         try_xxx=try_xxx,
     )
 
@@ -92,34 +92,37 @@ def handle_torrent(
     runtime: dict[str, Any],
     teams: list[str],
     delay_operation: bool,
+    *,
+    mutate: bool = True,
 ) -> tuple[dict[str, str], dict[str, str]]:
     tags = tags_for_torrent(
         torrent=torrent,
         category=category,
         trackers=runtime["trackers"],
-        tag_types=runtime["tag_types"],
+        auto_tags=runtime["auto_tags"],
         teams=teams,
     )
-    tags_ui = prefix_tags(tags, runtime["tag_types"])
-    if runtime["update_tags"] and not delay_operation:
-        write_torrent_tags(torrent, tags_ui, runtime["tags_to_reserve"], runtime["overwrite"])
+    tags = filter_by_when(tags, runtime["auto_tags"])
+    tags_ui = prefix_tags(tags, runtime["auto_tags"])
+    if mutate and not delay_operation:
+        write_torrent_tags(torrent, tags_ui, runtime["manual_tags"])
     return tags, tags_ui
 
 
 def _record_statistics(
     tags: dict[str, str],
     category: str,
-    tag_types: dict[str, dict],
+    auto_tags: dict[str, dict],
     statistics_total: dict,
     statistics_categories: dict,
 ) -> None:
     if category and category not in statistics_categories:
-        statistics_categories[category] = {tag_type: {} for tag_type in tag_types}
+        statistics_categories[category] = {name: {} for name in auto_tags}
     for tag_type, raw_value in tags.items():
-        if tag_type not in tag_types:
+        if tag_type not in auto_tags:
             continue
         if not raw_value:
-            if tag_type != "content":
+            if tag_type != "media":
                 continue
             tag_value = UNKNOWN_TAG
         else:
@@ -132,12 +135,12 @@ def _record_statistics(
             bucket[tag_value] = bucket.get(tag_value, 0) + 1
 
 
-def init_statistics(tag_types: dict[str, dict], statistics: dict[str, Any]) -> tuple[dict, dict]:
+def init_statistics(auto_tags: dict[str, dict], statistics: dict[str, Any]) -> tuple[dict, dict]:
     statistics_total = statistics.get("TOTAL") or {}
     statistics_categories = statistics.get("CATEGORIES") or {}
     dynamic_types = {"team", "year", "producer"}
 
-    for tag_type in tag_types:
+    for tag_type in auto_tags:
         if tag_type == "team":
             previous = list((statistics_total.get(tag_type) or {}).keys())
             statistics_total[tag_type] = {name: 0 for name in previous}
@@ -153,11 +156,11 @@ def init_statistics(tag_types: dict[str, dict], statistics: dict[str, Any]) -> t
                 statistics_categories[category][tag_type] = {name: 0 for name in TAGS[tag_type]}
 
     for tag_type in list(statistics_total):
-        if tag_type not in tag_types and tag_type != "team":
+        if tag_type not in auto_tags and tag_type != "team":
             statistics_total[tag_type] = {}
     for category in statistics_categories:
         for tag_type in list(statistics_categories[category]):
-            if tag_type not in tag_types and tag_type != "team":
+            if tag_type not in auto_tags and tag_type != "team":
                 statistics_categories[category][tag_type] = {}
 
     return statistics_total, statistics_categories
@@ -207,12 +210,10 @@ def process_all(
     collect_statistics: bool = False,
 ) -> dict[str, Any]:
     runtime = prepare_runtime(config)
-    if not mutate:
-        runtime["update_tags"] = False
-    tag_types = runtime["tag_types"]
+    auto_tags = runtime["auto_tags"]
     trackers = runtime["trackers"]
-    statistics_total, statistics_categories = init_statistics(tag_types, {"TOTAL": {}, "CATEGORIES": {}})
-    delay_operation = mutate and runtime["update_tags"] and any(spec["max_number"] > 0 for spec in tag_types.values())
+    statistics_total, statistics_categories = init_statistics(auto_tags, {"TOTAL": {}, "CATEGORIES": {}})
+    delay_operation = mutate and any(spec["max_number"] > 0 for spec in auto_tags.values())
     logger.info("Running %s delay operation mode", "with" if delay_operation else "without")
 
     client = _connect(config)
@@ -258,13 +259,15 @@ def process_all(
 
             delayed = "[Delayed] " if delay_operation else ""
             logger.info("(%s / %s) %sHandling tags for torrent %s...", count, total, delayed, torrent.name)
-            tags, tags_ui = handle_torrent(torrent, category, runtime, teams, delay_operation)
+            tags, tags_ui = handle_torrent(
+                torrent, category, runtime, teams, delay_operation, mutate=mutate
+            )
             if delay_operation:
                 torrent_tags[torrent.hash] = tags_ui or {}
             if collect_statistics:
-                _record_statistics(tags, category, tag_types, statistics_total, statistics_categories)
+                _record_statistics(tags, category, auto_tags, statistics_total, statistics_categories)
 
-        if mutate and runtime["update_tags"]:
+        if mutate:
             if delay_operation:
                 _apply_delayed_tags(client, torrent_tags, runtime)
             _delete_unused_tags(client)
@@ -281,8 +284,8 @@ def process_all(
 
 def _apply_delayed_tags(client: qbit.Client, torrent_tags: dict[str, dict[str, str]], runtime: dict[str, Any]) -> None:
     logger.info("Delay operation starts: updating tags...")
-    tag_types = runtime["tag_types"]
-    tag_type_tags = {tag_type: set() for tag_type in tag_types}
+    auto_tags = runtime["auto_tags"]
+    tag_type_tags = {name: set() for name in auto_tags}
     tag_numbers: dict[str, int] = {}
     for tags_ui in torrent_tags.values():
         for tag_type, tag in tags_ui.items():
@@ -295,19 +298,19 @@ def _apply_delayed_tags(client: qbit.Client, torrent_tags: dict[str, dict[str, s
     tags_to_remove: list[str] = []
     for tag_type, values in tag_type_tags.items():
         tags_of_type = list(values)
-        limit = tag_types[tag_type]["max_number"]
+        limit = auto_tags[tag_type]["max_number"]
         if limit > 0 and limit < len(tags_of_type):
             tags_of_type.sort(key=lambda tag: tag_numbers[tag], reverse=True)
             tags_to_remove.extend(tags_of_type[limit:])
 
-    tags_to_reserve = runtime["tags_to_reserve"]
-    tags_to_remove = [tag for tag in tags_to_remove if tag not in tags_to_reserve]
+    manual_tags = runtime["manual_tags"]
+    tags_to_remove = [tag for tag in tags_to_remove if tag not in manual_tags]
     total = len(torrent_tags)
     for count, (info_hash, tags_ui) in enumerate(torrent_tags.items(), start=1):
         torrent = client.torrents_info(torrent_hashes=info_hash)[0]
         logger.info("(%s / %s) Tagging torrent %s...", count, total, torrent.name)
         filtered = {key: value for key, value in tags_ui.items() if value not in tags_to_remove}
-        write_torrent_tags(torrent, filtered, tags_to_reserve, runtime["overwrite"])
+        write_torrent_tags(torrent, filtered, manual_tags)
 
 
 def _delete_unused_tags(client: qbit.Client) -> None:

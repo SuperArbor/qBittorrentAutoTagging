@@ -1,80 +1,71 @@
-# qBittorrent 所在主机的 ip，以及 qBittorrent WebUI 的监听端口，在 qBittorrent 的设置 > WebUI 中设置
-host: localhost
-port: 8080
-# qBittorrent 的 webui 的用户名、密码，在 qBittorrent 的设置 > WebUI > 验证中手动设置用户名和密码后，才能远程登陆
-username: admin
-password: admin
-# 创建新的 tag 时是否清除已有标签
-overwrite: true
-# 是否更新客户端中的标签
-update_tags: true
-# 定义标签类型
-# 可选范围: content, media, year, resolution, process_method, process_type, team, producer
-tag_types:
-  content:              # Movie, TV, Music, XXX, Ebook, Audiobook
-    prefix: '#'         # 标签前的装饰前缀
-    max_number: -1      # 该类型下最多保留的标签实例数，-1 表示不限制
-    ignore: false       # tagging 时是否忽略该类型
-  media:                # BluRay, DVD, HDTV, WEB
+# qBittorrent WebUI：设置 > WebUI 中的监听地址/端口，以及验证用户名、密码
+qbittorrent:
+  host: localhost
+  port: 8080
+  username: admin
+  password: admin
+# 自动标签规则。机器按这些规则生成 tag，与下方 manual_tags 相对
+# 可选: media, source, year, resolution, process_method, process_type, team, producer
+# prefix: 写到客户端时加在 tag 前面的符号；省略则为空
+# max_number: 全库这一类最多保留几种取值（按出现次数取前 N）。
+#   例: team 为 2 → 只留下全库最常见的 2 个组名，其它种子不打 team。
+#   省略或 -1 = 不限制。只在「qtag」处理全部种子时生效，单种 / 新增时不裁。
+# ignore: true = 不生成这一类；省略或 false = 生成
+# when: 仅当该种 media 为所列值时才打；省略则不限制
+auto_tags:
+  media:                # Movie, TV, Music, XXX, Ebook, Audiobook
+    prefix: '#'
+  source:               # BluRay, DVD, HDTV, WEB
     prefix: '$'
-    max_number: -1
-    ignore: false
+    when: [Movie, TV]
   resolution:           # 720p/i, 1080p/i, 2160p/i
-    prefix: ''
-    max_number: -1
-    ignore: false
+    when: [Movie, TV]
   team:                 # 压制组
     prefix: '-'
     max_number: 2
-    ignore: false
   process_type:         # Encode, Raw
     prefix: '~'
-    max_number: -1
     ignore: true
+    when: [Movie, TV]
   process_method:       # H264/H265, x264/x265
-    prefix: ''
-    max_number: -1
     ignore: true
+    when: [Movie, TV]
   year:                 # 作品年份
-    prefix: ''
     max_number: 3
     ignore: true
+    when: [Movie, TV]
   producer:
     prefix: '*'
-    max_number: -1
-    ignore: false
-# 更新标签时保留的标签内容
-tags_to_reserve:
+    when: [XXX]
+# 手动添加的 tag，运行 qtag 时不会被自动移除
+manual_tags:
   - ★Save
   - ★Post
 # 定义各个 tracker 的特性
-# content 为空时按 Movie/TV 片名规则识别；['Music'] 固定打 Music；
+# url_key: tracker announce URL 中的关键词
+# ignore: true 则跳过该 tracker；省略或 false = 处理
+# media 为空时按 Movie/TV 片名规则识别；['Music'] 固定打 Music；
 # ['Ebook', 'Audiobook'] 按种子内文件扩展名识别（同时出现时优先 Audiobook）
 trackers:
   NHD:
-    url_key: nexushd    # tracker url 中的关键词
-    ignore: false       # tagging 时是否忽略该 tracker
-    content:            # 该 tracker 包含的内容类型
+    url_key: nexushd
+    media:
   PuTao:
     url_key: sjtu
-    ignore: false
-    content:
+    media:
   MT:
     url_key: m-team
-    ignore: false
-    content:
+    media:
       - Movie
       - TV
       - Music
       - XXX
   OpenCD:
     url_key: open.cd
-    ignore: false
-    content:
+    media:
       - Music
   MAM:
     url_key: myanonamouse
-    ignore: false
-    content:
+    media:
       - Ebook
       - Audiobook

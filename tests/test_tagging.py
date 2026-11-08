@@ -1,8 +1,9 @@
 import unittest
 
 from qtag.tagging import (
-    classify_content_by_files,
+    classify_media_by_files,
     decode_torrent_tags,
+    filter_by_when,
     prefix_tags,
     prune_statistics,
     tagging_strategy,
@@ -27,9 +28,9 @@ class TestDecodeTorrentTags(unittest.TestCase):
         ]
         expected_output_list = [
             {
-                "content": "Movie",
+                "media": "Movie",
                 "name": "The Frighteners",
-                "media": "BluRay",
+                "source": "BluRay",
                 "year": "1996",
                 "resolution": "1080p",
                 "process_method": "x265",
@@ -38,9 +39,9 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "producer": "",
             },
             {
-                "content": "Movie",
+                "media": "Movie",
                 "name": "Mrs. Doubtfire",
-                "media": "BluRay",
+                "source": "BluRay",
                 "year": "1993",
                 "resolution": "1080p",
                 "process_method": "x264",
@@ -49,9 +50,9 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "producer": "",
             },
             {
-                "content": "Movie",
+                "media": "Movie",
                 "name": "The Talented Mr. Ripley",
-                "media": "BluRay",
+                "source": "BluRay",
                 "year": "1999",
                 "resolution": "1080p",
                 "process_method": "H.265",
@@ -60,9 +61,9 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "producer": "",
             },
             {
-                "content": "Movie",
+                "media": "Movie",
                 "name": "Aruitemo Aruitemo a.k.a. Still Walking",
-                "media": "BluRay",
+                "source": "BluRay",
                 "year": "2008",
                 "resolution": "1080p",
                 "process_method": "H.264",
@@ -71,9 +72,9 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "producer": "",
             },
             {
-                "content": "Movie",
+                "media": "Movie",
                 "name": "Lie with Me",
-                "media": "BluRay",
+                "source": "BluRay",
                 "year": "2005",
                 "resolution": "1080i",
                 "process_method": "MPEG-2",
@@ -82,9 +83,9 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "producer": "",
             },
             {
-                "content": "Movie",
+                "media": "Movie",
                 "name": "Yuru Camp Movie",
-                "media": "BluRay",
+                "source": "BluRay",
                 "year": "2022",
                 "resolution": "2160p",
                 "process_method": "H.265",
@@ -92,12 +93,12 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "team": "Rainbaby",
                 "producer": "",
             },
-            {"content": "XXX", "producer": "FC2"},
-            {"content": "XXX", "producer": "FC2"},
-            {"content": "XXX", "producer": "FC2"},
-            {"content": "XXX", "producer": "FC2"},
-            {"content": "XXX", "producer": "FC2"},
-            {"content": "XXX", "producer": "JAV"},
+            {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "FC2"},
+            {"media": "XXX", "producer": "JAV"},
         ]
         for torrent_name, expected_output in zip(input_list, expected_output_list, strict=True):
             tags = decode_torrent_tags(torrent_name, teams=[], tag_types=[], try_xxx=True)
@@ -111,7 +112,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
         self.assertEqual(tags["team"], "EbP")
 
     def test_tag_types_subset(self):
-        tag_types_all = ["content", "name", "media", "year", "resolution", "process_method", "process_type", "team"]
+        tag_types_all = ["media", "name", "source", "year", "resolution", "process_method", "process_type", "team"]
         combinations = [[0], [0, 1], [2, 4], [3, 4, 5], [7], list(range(len(tag_types_all)))]
         torrent_name = "The.Frighteners.1996.DC.1080p.UHD.BluRay.DDP.7.1.DoVi.HDR10.x265-c0kE"
         for comb in combinations:
@@ -139,14 +140,14 @@ class TestClassifyByFiles(unittest.TestCase):
             "Author - Title/cover.jpg",
             "Author - Title/metadata.opf",
         ]
-        self.assertEqual(classify_content_by_files(files), "Ebook")
+        self.assertEqual(classify_media_by_files(files), "Ebook")
 
     def test_ebook_collection(self):
         files = ["Omnibus/book1.epub", "Omnibus/book2.epub", "Omnibus/book3.azw3"]
-        self.assertEqual(classify_content_by_files(files), "Ebook")
+        self.assertEqual(classify_media_by_files(files), "Ebook")
 
     def test_audiobook_single(self):
-        self.assertEqual(classify_content_by_files(["Book.m4b"]), "Audiobook")
+        self.assertEqual(classify_media_by_files(["Book.m4b"]), "Audiobook")
 
     def test_audiobook_split_with_sidecars(self):
         files = [
@@ -157,40 +158,72 @@ class TestClassifyByFiles(unittest.TestCase):
             "Book/02.mp3",
             "Book/03.mp3",
         ]
-        self.assertEqual(classify_content_by_files(files), "Audiobook")
+        self.assertEqual(classify_media_by_files(files), "Audiobook")
 
     def test_both_prefers_audiobook(self):
         files = ["Title/book.epub", "Title/book.m4b", "Title/cover.png"]
-        self.assertEqual(classify_content_by_files(files), "Audiobook")
+        self.assertEqual(classify_media_by_files(files), "Audiobook")
 
     def test_nested_epub_in_zip_suffix(self):
-        self.assertEqual(classify_content_by_files(["Title.epub.zip"]), "Ebook")
+        self.assertEqual(classify_media_by_files(["Title.epub.zip"]), "Ebook")
 
     def test_keyword_fallback(self):
-        self.assertEqual(classify_content_by_files(["archive.zip"], "Some Book EPUB"), "Ebook")
-        self.assertEqual(classify_content_by_files(["archive.rar"], "Some Book M4B"), "Audiobook")
+        self.assertEqual(classify_media_by_files(["archive.zip"], "Some Book EPUB"), "Ebook")
+        self.assertEqual(classify_media_by_files(["archive.rar"], "Some Book M4B"), "Audiobook")
 
     def test_sidecars_only(self):
-        self.assertEqual(classify_content_by_files(["cover.jpg", "readme.txt", "book.cue"]), "")
+        self.assertEqual(classify_media_by_files(["cover.jpg", "readme.txt", "book.cue"]), "")
+
+
+class TestFilterByWhen(unittest.TestCase):
+    def test_keeps_unconstrained_and_matching(self):
+        auto_tags = {
+            "media": {"prefix": "#", "when": []},
+            "source": {"prefix": "$", "when": ["Movie", "TV"]},
+            "producer": {"prefix": "*", "when": ["XXX"]},
+        }
+        tags = {"media": "Movie", "source": "BluRay", "producer": "JAV"}
+        self.assertEqual(
+            filter_by_when(tags, auto_tags),
+            {"media": "Movie", "source": "BluRay"},
+        )
+
+    def test_drops_when_media_does_not_match(self):
+        auto_tags = {
+            "media": {"prefix": "#", "when": []},
+            "source": {"prefix": "$", "when": ["Movie", "TV"]},
+            "resolution": {"prefix": "", "when": ["Movie", "TV"]},
+        }
+        tags = {"media": "Ebook", "source": "BluRay", "resolution": "1080p"}
+        self.assertEqual(filter_by_when(tags, auto_tags), {"media": "Ebook"})
+
+    def test_empty_media_fails_when(self):
+        auto_tags = {
+            "media": {"when": []},
+            "source": {"when": ["Movie", "TV"]},
+        }
+        tags = {"media": "", "source": "WEB"}
+        self.assertEqual(filter_by_when(tags, auto_tags), {"media": ""})
 
 
 class TestPrefixAndPrune(unittest.TestCase):
     def test_prefix_tags_skips_empty(self):
-        tag_types = {
-            "content": {"prefix": "#"},
+        auto_tags = {
+            "media": {"prefix": "#"},
             "team": {"prefix": "-"},
+            "resolution": {},
         }
-        tags_ui = prefix_tags({"content": "Ebook", "team": ""}, tag_types)
-        self.assertEqual(tags_ui, {"content": "#Ebook", "team": ""})
+        tags_ui = prefix_tags({"media": "Ebook", "team": "", "resolution": "1080p"}, auto_tags)
+        self.assertEqual(tags_ui, {"media": "#Ebook", "team": "", "resolution": "1080p"})
 
     def test_prune_statistics(self):
         statistics = {
-            "TOTAL": {"content": {"Ebook": 2, "Movie": 0}, "team": {"A": 0}},
+            "TOTAL": {"media": {"Ebook": 2, "Movie": 0}, "team": {"A": 0}},
             "CATEGORIES": {
-                "MAM": {"content": {"Ebook": 2, "Audiobook": 0}},
-                "Empty": {"content": {"Movie": 0}},
+                "MAM": {"media": {"Ebook": 2, "Audiobook": 0}},
+                "Empty": {"media": {"Movie": 0}},
             },
         }
         pruned = prune_statistics(statistics)
-        self.assertEqual(pruned["TOTAL"], {"content": {"Ebook": 2}})
-        self.assertEqual(pruned["CATEGORIES"], {"MAM": {"content": {"Ebook": 2}}})
+        self.assertEqual(pruned["TOTAL"], {"media": {"Ebook": 2}})
+        self.assertEqual(pruned["CATEGORIES"], {"MAM": {"media": {"Ebook": 2}}})

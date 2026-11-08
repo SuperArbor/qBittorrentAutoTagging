@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     if not config_path.exists():
         write_default_config(config_path, overwrite=False)
         logger.error("No config found. A template was written to %s", config_path)
-        logger.error("Edit host/port/username/password, then run qtag again.")
+        logger.error("Edit qbittorrent host/port/username/password, then run qtag again.")
         return 1
 
     config = load_config(config_dir)
@@ -105,17 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.info_hash:
-        logger.info(
-            "Running process_new with update_tags %s",
-            "on" if config.get("update_tags") else "off",
-        )
+        logger.info("Running process_new")
         process_new(args.info_hash, config)
         return 0
 
-    logger.info(
-        "Running process_all with update_tags %s",
-        "on" if config.get("update_tags") else "off",
-    )
     logger.info("Handling all torrents...")
     process_all(config, mutate=True, collect_statistics=False)
     return 0

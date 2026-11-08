@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from qtag.config import default_config_dir, default_config_text, prepare_runtime, write_default_config
-from qtag.tagging import DEFAULT_TRACKER_CONTENT
+from qtag.tagging import DEFAULT_TRACKER_MEDIA
 
 
 def test_default_config_dir_ends_with_qtag():
@@ -13,6 +13,14 @@ def test_default_config_contains_mam():
     assert "myanonamouse" in text
     assert "Ebook" in text
     assert "Audiobook" in text
+    assert "qbittorrent:" in text
+    assert "auto_tags:" in text
+    assert "tag_types:" not in text
+    assert "when: [Movie, TV]" in text
+    assert "overwrite:" not in text
+    assert "update_tags:" not in text
+    assert "max_number: -1" not in text
+    assert "ignore: false" not in text
 
 
 def test_write_default_config(tmp_path: Path):
@@ -26,24 +34,42 @@ def test_write_default_config(tmp_path: Path):
 def test_prepare_runtime_defaults():
     runtime = prepare_runtime(
         {
-            "overwrite": True,
-            "update_tags": False,
-            "tags_to_reserve": ["★Save"],
-            "tag_types": {
-                "content": {"prefix": "#", "ignore": False},
-                "media": {"prefix": "$", "ignore": True},
+            "manual_tags": ["★Save"],
+            "auto_tags": {
+                "media": {"prefix": "#"},
+                "resolution": {},
+                "source": {"prefix": "$", "ignore": True},
             },
             "trackers": {
                 "NHD": {"url_key": "nexushd"},
-                "OpenCD": {"url_key": "open.cd", "content": ["Music"]},
-                "MAM": {"url_key": "myanonamouse", "content": ["Ebook", "Audiobook"]},
+                "OpenCD": {"url_key": "open.cd", "media": ["Music"]},
+                "MAM": {"url_key": "myanonamouse", "media": ["Ebook", "Audiobook"]},
             },
         }
     )
-    assert "content" in runtime["tag_types"]
-    assert "media" not in runtime["tag_types"]
-    assert runtime["tag_types"]["content"]["max_number"] == -1
-    assert runtime["trackers"]["NHD"]["content"] == list(DEFAULT_TRACKER_CONTENT)
-    assert runtime["trackers"]["OpenCD"]["content"] == ["Music"]
-    assert runtime["overwrite"] is True
-    assert runtime["update_tags"] is False
+    assert "media" in runtime["auto_tags"]
+    assert "source" not in runtime["auto_tags"]
+    assert runtime["auto_tags"]["media"]["max_number"] == -1
+    assert runtime["auto_tags"]["media"]["when"] == []
+    assert runtime["auto_tags"]["media"]["prefix"] == "#"
+    assert runtime["auto_tags"]["resolution"]["prefix"] == ""
+    assert runtime["trackers"]["NHD"]["media"] == list(DEFAULT_TRACKER_MEDIA)
+    assert runtime["trackers"]["OpenCD"]["media"] == ["Music"]
+    assert runtime["manual_tags"] == ["★Save"]
+    assert "overwrite" not in runtime
+    assert "update_tags" not in runtime
+
+
+def test_prepare_runtime_normalizes_when():
+    runtime = prepare_runtime(
+        {
+            "auto_tags": {
+                "media": {"prefix": "#"},
+                "source": {"prefix": "$", "when": "Movie"},
+                "producer": {"prefix": "*", "when": ["XXX"]},
+            },
+        }
+    )
+    assert runtime["auto_tags"]["media"]["when"] == []
+    assert runtime["auto_tags"]["source"]["when"] == ["Movie"]
+    assert runtime["auto_tags"]["producer"]["when"] == ["XXX"]

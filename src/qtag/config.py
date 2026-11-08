@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 from platformdirs import user_config_dir
 
-from qtag.tagging import DEFAULT_TRACKER_CONTENT, TAGS
+from qtag.tagging import DEFAULT_TRACKER_MEDIA, TAGS
 
 APP_NAME = "qtag"
 CONFIG_FILENAME = "config.yaml"
@@ -46,27 +46,28 @@ def load_config(config_dir: Path) -> dict[str, Any]:
 
 
 def prepare_runtime(config: dict[str, Any]) -> dict[str, Any]:
-    """Normalize tag_types / trackers and collect runtime flags."""
-    tag_types = {
-        tag_type: dict(spec) for tag_type, spec in (config.get("tag_types") or {}).items() if not spec.get("ignore")
+    """Normalize auto_tags / trackers and collect runtime flags."""
+    auto_tags = {
+        name: dict(spec) for name, spec in (config.get("auto_tags") or {}).items() if not spec.get("ignore")
     }
-    for spec in tag_types.values():
-        spec.setdefault("prefix", "")
-        if not spec.get("max_number"):
+    for spec in auto_tags.values():
+        if spec.get("prefix") is None:
+            spec["prefix"] = ""
+        if spec.get("max_number") in (None, 0):
             spec["max_number"] = -1
+        when = spec.get("when") or []
+        spec["when"] = [when] if isinstance(when, str) else list(when)
 
     trackers = {name: dict(spec) for name, spec in (config.get("trackers") or {}).items()}
     for spec in trackers.values():
-        if not spec.get("content"):
-            spec["content"] = list(DEFAULT_TRACKER_CONTENT)
+        if not spec.get("media"):
+            spec["media"] = list(DEFAULT_TRACKER_MEDIA)
         spec.setdefault("ignore", False)
         spec.setdefault("url_key", "")
 
     return {
-        "tag_types": tag_types,
+        "auto_tags": auto_tags,
         "trackers": trackers,
-        "overwrite": bool(config.get("overwrite")),
-        "tags_to_reserve": list(config.get("tags_to_reserve") or []),
-        "update_tags": bool(config.get("update_tags")),
+        "manual_tags": list(config.get("manual_tags") or []),
         "known_tags": TAGS,
     }

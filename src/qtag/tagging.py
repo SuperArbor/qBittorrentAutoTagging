@@ -10,27 +10,27 @@ from pathlib import Path
 SPLITTERS = [".", " "]
 SPLITTER_TEAM = "-"
 VIDEO_EXTS = [".mkv", ".mp4"]
-MEDIA_TYPES_MORE = ["BluRay", "Blu-ray", "BDRip", "DVD", "DVDRip", "HDDVD", "HDTV", "WEB", "WEB-DL", "WEBRip"]
+SOURCE_TYPES_MORE = ["BluRay", "Blu-ray", "BDRip", "DVD", "DVDRip", "HDDVD", "HDTV", "WEB", "WEB-DL", "WEBRip"]
 YEAR_MIN = 1900
 YEAR_MAX = datetime.datetime.now().astimezone().year
 UNKNOWN_TAG = "?"
 
-DEFAULT_TRACKER_CONTENT = ["Movie", "TV", "Music"]
-FILE_CONTENTS = frozenset({"Ebook", "Audiobook"})
-VIDEO_CONTENTS = frozenset({"Movie", "TV"})
+DEFAULT_TRACKER_MEDIA = ["Movie", "TV", "Music"]
+FILE_MEDIA = frozenset({"Ebook", "Audiobook"})
+VIDEO_MEDIA = frozenset({"Movie", "TV"})
 
 TAGS = {
-    "content": ["Movie", "TV", "Music", "XXX", "Ebook", "Audiobook"],
-    "media": ["BluRay", "WEB", "DVD", "HDTV"],
+    "media": ["Movie", "TV", "Music", "XXX", "Ebook", "Audiobook"],
+    "source": ["BluRay", "WEB", "DVD", "HDTV"],
     "process_type": ["Encode", "Raw"],
     "process_method": ["x264", "x265", "H.264", "H.265", "XviD", "DivX", "MPEG-2"],
     "resolution": ["1080", "2160", "720"],
 }
 
 DEFAULT_TAG_TYPES = [
-    "content",
-    "name",
     "media",
+    "name",
+    "source",
     "year",
     "resolution",
     "process_method",
@@ -108,33 +108,33 @@ DVD_ALIASES = {"dvd", "hddvd", "dvdrip"}
 HDTV_ALIASES = {"hdtv"}
 
 
-def tagging_strategy(content_types: list[str] | None) -> str:
-    """Pick a tagging path from a tracker's configured content list."""
-    if not content_types:
+def tagging_strategy(media_types: list[str] | None) -> str:
+    """Pick a tagging path from a tracker's configured media list."""
+    if not media_types:
         return "name"
-    types = set(content_types)
+    types = set(media_types)
     if types == {"Music"}:
         return "music"
-    if types & FILE_CONTENTS and not (types & VIDEO_CONTENTS):
+    if types & FILE_MEDIA and not (types & VIDEO_MEDIA):
         return "files"
     return "name"
 
 
-def classify_content_by_files(file_names: list[str], torrent_name: str = "") -> str:
+def classify_media_by_files(file_names: list[str], torrent_name: str = "") -> str:
     """Classify Ebook vs Audiobook from torrent file paths.
 
     Sidecar files (covers, cue, nfo, ...) are ignored. Multiple ebook formats of
-    the same title still count as Ebook. If both kinds of content files appear,
+    the same title still count as Ebook. If both kinds of media files appear,
     Audiobook wins.
     """
     has_ebook = False
     has_audiobook = False
     for name in file_names:
         exts = {suffix.lower() for suffix in Path(name).suffixes}
-        content_exts = exts - IGNORE_EXTS
-        if content_exts & AUDIOBOOK_EXTS:
+        media_exts = exts - IGNORE_EXTS
+        if media_exts & AUDIOBOOK_EXTS:
             has_audiobook = True
-        if content_exts & EBOOK_EXTS:
+        if media_exts & EBOOK_EXTS:
             has_ebook = True
 
     if not has_ebook and not has_audiobook:
@@ -151,30 +151,43 @@ def classify_content_by_files(file_names: list[str], torrent_name: str = "") -> 
     return ""
 
 
-def prefix_tags(tags: dict[str, str], tag_types: dict[str, dict]) -> dict[str, str]:
+def filter_by_when(tags: dict[str, str], auto_tags: dict[str, dict]) -> dict[str, str]:
+    """Keep an auto tag only if it has no `when`, or media is in `when`."""
+    media = tags.get("media") or ""
+    filtered: dict[str, str] = {}
+    for name, value in tags.items():
+        allowed = (auto_tags.get(name) or {}).get("when") or []
+        if allowed and media not in allowed:
+            continue
+        filtered[name] = value
+    return filtered
+
+
+def prefix_tags(tags: dict[str, str], auto_tags: dict[str, dict]) -> dict[str, str]:
     tags_ui: dict[str, str] = {}
-    for tag_type, tag_value in tags.items():
-        spec = tag_types.get(tag_type)
+    for name, tag_value in tags.items():
+        spec = auto_tags.get(name)
         if spec is None:
             continue
-        tags_ui[tag_type] = f"{spec['prefix']}{tag_value}" if tag_value else ""
+        prefix = spec.get("prefix") or ""
+        tags_ui[name] = f"{prefix}{tag_value}" if tag_value else ""
     return tags_ui
 
 
 def decode_torrent_tags_xxx(torrent_name: str, tag_types: list[str]) -> dict[str, str]:
-    content = ""
+    media = ""
     producer = ""
     if re.match(r"[a-zA-Z]+-\d+", torrent_name, re.IGNORECASE):
-        content = "XXX"
+        media = "XXX"
         producer = "JAV"
     elif re.match(r"fc2[ -](ppv[ -])?\d+", torrent_name, re.IGNORECASE):
-        content = "XXX"
+        media = "XXX"
         producer = "FC2"
     elif re.match(r"\d+[a-zA-Z]+-\d+", torrent_name, re.IGNORECASE):
-        content = "XXX"
+        media = "XXX"
         producer = "SHIRO"
 
-    decoded = {"content": content, "producer": producer}
+    decoded = {"media": media, "producer": producer}
     return {tag_type: decoded[tag_type] for tag_type in tag_types if tag_type in decoded}
 
 
@@ -203,40 +216,40 @@ def decode_torrent_tags(
             splitter = candidate
 
     if not splitter:
-        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {"content": ""}
+        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {"media": ""}
 
     groups = torrent_name.split(splitter)
     producer = ""
-    media = ""
+    source = ""
     resolution = ""
     groups_lowered = [group.lower() for group in groups]
     marked: list[int] = []
 
-    for media_type in MEDIA_TYPES_MORE:
+    for source_type in SOURCE_TYPES_MORE:
         for i, group in enumerate(groups_lowered):
-            if media_type.lower() != group:
+            if source_type.lower() != group:
                 continue
             if group in BLURAY_ALIASES:
-                media = "BluRay"
+                source = "BluRay"
             elif group in WEB_ALIASES:
-                media = "WEB"
+                source = "WEB"
             elif group in DVD_ALIASES:
-                media = "DVD"
+                source = "DVD"
             elif group in HDTV_ALIASES:
-                media = "HDTV"
+                source = "HDTV"
             else:
-                media = media_type
+                source = source_type
             marked.append(i)
             break
-        if media:
+        if source:
             break
 
-    if not media:
+    if not source:
         for i, group in enumerate(groups_lowered):
             if i in marked:
                 continue
             if group == "uhd":
-                media = "BluRay"
+                source = "BluRay"
                 marked.append(i)
                 break
 
@@ -251,8 +264,8 @@ def decode_torrent_tags(
         if resolution:
             break
 
-    if (not media) and (not resolution):
-        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {"content": ""}
+    if (not source) and (not resolution):
+        return decode_torrent_tags_xxx(torrent_name, tag_types=tag_types) if try_xxx else {"media": ""}
 
     team = ""
     if "team" in tag_types:
@@ -308,15 +321,15 @@ def decode_torrent_tags(
             break
 
     year = ""
-    content = ""
-    if "year" in tag_types or "content" in tag_types:
+    media = ""
+    if "year" in tag_types or "media" in tag_types:
         for i in reversed(range(len(groups_lowered))):
-            if year and content:
+            if year and media:
                 break
             if i in marked:
                 continue
             if re.match(r"s\d\d.*", groups_lowered[i], re.IGNORECASE):
-                content = "TV"
+                media = "TV"
                 marked.append(i)
                 continue
             try:
@@ -325,8 +338,8 @@ def decode_torrent_tags(
                     marked.append(i)
             except ValueError:
                 pass
-        if not content:
-            content = "Movie"
+        if not media:
+            media = "Movie"
 
     name = ""
     if "name" in tag_types and marked:
@@ -335,9 +348,9 @@ def decode_torrent_tags(
         name = " ".join(groups[i] for i in range(name_idx))
 
     decoded = {
-        "content": content,
-        "name": name,
         "media": media,
+        "name": name,
+        "source": source,
         "year": year,
         "resolution": resolution,
         "process_method": process_method,
