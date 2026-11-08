@@ -163,9 +163,9 @@ def init_statistics(tag_types: dict[str, dict], statistics: dict[str, Any]) -> t
     return statistics_total, statistics_categories
 
 
-def process_new(info_hash: str, config: dict[str, Any], statistics: dict[str, Any]) -> None:
+def process_new(info_hash: str, config: dict[str, Any]) -> None:
     runtime = prepare_runtime(config)
-    teams = list((statistics.get("TOTAL") or {}).get("team") or {})
+    teams: list[str] = []
     client = _connect(config)
     try:
         client.auth_log_in()
@@ -200,21 +200,29 @@ def process_new(info_hash: str, config: dict[str, Any], statistics: dict[str, An
             pass
 
 
-def process_all(config: dict[str, Any], statistics: dict[str, Any]) -> dict[str, Any]:
+def process_all(
+    config: dict[str, Any],
+    *,
+    mutate: bool = True,
+    collect_statistics: bool = False,
+) -> dict[str, Any]:
     runtime = prepare_runtime(config)
+    if not mutate:
+        runtime["update_tags"] = False
     tag_types = runtime["tag_types"]
     trackers = runtime["trackers"]
-    statistics_total, statistics_categories = init_statistics(tag_types, statistics)
-    delay_operation = any(spec["max_number"] > 0 for spec in tag_types.values())
+    statistics_total, statistics_categories = init_statistics(tag_types, {"TOTAL": {}, "CATEGORIES": {}})
+    delay_operation = mutate and runtime["update_tags"] and any(spec["max_number"] > 0 for spec in tag_types.values())
     logger.info("Running %s delay operation mode", "with" if delay_operation else "without")
 
     client = _connect(config)
     torrent_tags: dict[str, dict[str, str]] = {}
     try:
         client.auth_log_in()
-        for category in trackers:
-            if category not in client.torrent_categories.categories:
-                client.torrents_create_category(category)
+        if mutate:
+            for category in trackers:
+                if category not in client.torrent_categories.categories:
+                    client.torrents_create_category(category)
 
         logger.info("Fetching all the torrents from the client...")
         torrent_list = client.torrents_info()
@@ -235,7 +243,7 @@ def process_all(config: dict[str, Any], statistics: dict[str, Any]) -> dict[str,
                     tracker_category_map[tracker_url] = category
 
             if category:
-                if torrent["category"] != category:
+                if mutate and torrent["category"] != category:
                     torrent.set_category(category)
                 logger.info("category: %s", category)
 
@@ -253,10 +261,10 @@ def process_all(config: dict[str, Any], statistics: dict[str, Any]) -> dict[str,
             tags, tags_ui = handle_torrent(torrent, category, runtime, teams, delay_operation)
             if delay_operation:
                 torrent_tags[torrent.hash] = tags_ui or {}
-            if runtime["update_statistics"]:
+            if collect_statistics:
                 _record_statistics(tags, category, tag_types, statistics_total, statistics_categories)
 
-        if runtime["update_tags"]:
+        if mutate and runtime["update_tags"]:
             if delay_operation:
                 _apply_delayed_tags(client, torrent_tags, runtime)
             _delete_unused_tags(client)

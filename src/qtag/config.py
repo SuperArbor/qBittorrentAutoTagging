@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -12,12 +11,8 @@ from platformdirs import user_config_dir
 
 from qtag.tagging import DEFAULT_TRACKER_CONTENT, TAGS
 
-logger = logging.getLogger(__name__)
-
 APP_NAME = "qtag"
 CONFIG_FILENAME = "config.yaml"
-STATISTICS_FILENAME = "statistics.yaml"
-EMPTY_STATISTICS = {"TOTAL": {}, "CATEGORIES": {}}
 
 
 def default_config_dir() -> Path:
@@ -42,29 +37,11 @@ def load_yaml(path: Path) -> Any:
         return yaml.safe_load(handle)
 
 
-def dump_yaml(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        yaml.safe_dump(data, handle, allow_unicode=True, sort_keys=False)
-
-
 def load_config(config_dir: Path) -> dict[str, Any]:
     path = config_dir / CONFIG_FILENAME
     data = load_yaml(path)
     if not isinstance(data, dict):
         raise ValueError(f"Invalid config at {path}")
-    return data
-
-
-def load_statistics(config_dir: Path) -> dict[str, Any]:
-    path = config_dir / STATISTICS_FILENAME
-    if not path.exists():
-        logger.info("Statistics not found in %s, creating it", path)
-        dump_yaml(path, EMPTY_STATISTICS)
-        return {"TOTAL": {}, "CATEGORIES": {}}
-    data = load_yaml(path) or EMPTY_STATISTICS
-    data.setdefault("TOTAL", {})
-    data.setdefault("CATEGORIES", {})
     return data
 
 
@@ -91,6 +68,5 @@ def prepare_runtime(config: dict[str, Any]) -> dict[str, Any]:
         "overwrite": bool(config.get("overwrite")),
         "tags_to_reserve": list(config.get("tags_to_reserve") or []),
         "update_tags": bool(config.get("update_tags")),
-        "update_statistics": bool(config.get("update_statistics")),
         "known_tags": TAGS,
     }

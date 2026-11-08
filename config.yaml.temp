@@ -6,8 +6,6 @@ username: admin
 password: admin
 # 创建新的 tag 时是否清除已有标签
 overwrite: true
-# 是否更新 statistics 中的统计数据
-update_statistics: true
 # 是否更新客户端中的标签
 update_tags: true
 # 定义标签类型

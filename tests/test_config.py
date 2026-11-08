@@ -28,7 +28,6 @@ def test_prepare_runtime_defaults():
         {
             "overwrite": True,
             "update_tags": False,
-            "update_statistics": True,
             "tags_to_reserve": ["★Save"],
             "tag_types": {
                 "content": {"prefix": "#", "ignore": False},

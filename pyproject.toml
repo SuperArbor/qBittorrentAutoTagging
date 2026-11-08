@@ -3,7 +3,7 @@ name = "qtag"
 version = "0.2.0"
 description = "Auto-tag torrents in qBittorrent by name, tracker, or file type."
 readme = "README.md"
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11"
 dependencies = [
     "platformdirs",
     "PyYAML",

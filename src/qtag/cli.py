@@ -7,17 +7,11 @@ import logging
 import sys
 from pathlib import Path
 
+import yaml
+
 from qtag import __version__
 from qtag.client import process_all, process_new
-from qtag.config import (
-    CONFIG_FILENAME,
-    STATISTICS_FILENAME,
-    default_config_dir,
-    dump_yaml,
-    load_config,
-    load_statistics,
-    write_default_config,
-)
+from qtag.config import CONFIG_FILENAME, default_config_dir, load_config, write_default_config
 from qtag.tagging import prune_statistics
 
 logger = logging.getLogger("qtag")
@@ -36,12 +30,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config-dir",
         type=Path,
-        help="config.yaml 与 statistics.yaml 所在目录。默认使用系统配置目录。",
+        help="config.yaml 所在目录。默认使用系统配置目录。",
     )
     parser.add_argument(
         "--init",
         action="store_true",
         help="写入一份默认 config.yaml 后退出。",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="扫描全部种子，把分类/标签统计打印到控制台（不写文件、不改客户端）。",
     )
     parser.add_argument(
         "-v",
@@ -57,17 +56,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def configure_logging(verbose: bool) -> None:
+def configure_logging(verbose: bool, *, quiet: bool = False) -> None:
+    if quiet and not verbose:
+        level = logging.WARNING
+    elif verbose:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
     logging.basicConfig(
-        stream=sys.stdout,
-        level=logging.DEBUG if verbose else logging.INFO,
+        stream=sys.stderr,
+        level=level,
         format="%(levelname)s: %(message)s",
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    configure_logging(args.verbose)
+    configure_logging(args.verbose, quiet=args.report)
     config_dir = (args.config_dir or default_config_dir()).expanduser().resolve()
     config_path = config_dir / CONFIG_FILENAME
 
@@ -79,6 +84,10 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("Config already exists at %s", config_path)
         return 0
 
+    if args.report and args.info_hash:
+        logger.error("Do not pass an info hash together with --report.")
+        return 2
+
     if not config_path.exists():
         write_default_config(config_path, overwrite=False)
         logger.error("No config found. A template was written to %s", config_path)
@@ -86,26 +95,29 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     config = load_config(config_dir)
-    statistics = load_statistics(config_dir)
+
+    if args.report:
+        statistics = process_all(config, mutate=False, collect_statistics=True)
+        print(
+            yaml.safe_dump(prune_statistics(statistics), allow_unicode=True, sort_keys=False),
+            end="",
+        )
+        return 0
 
     if args.info_hash:
         logger.info(
             "Running process_new with update_tags %s",
             "on" if config.get("update_tags") else "off",
         )
-        process_new(args.info_hash, config, statistics)
+        process_new(args.info_hash, config)
         return 0
 
     logger.info(
-        "Running process_all with update_tags %s and update_statistics %s",
+        "Running process_all with update_tags %s",
         "on" if config.get("update_tags") else "off",
-        "on" if config.get("update_statistics") else "off",
     )
     logger.info("Handling all torrents...")
-    statistics = process_all(config, statistics)
-    if config.get("update_statistics"):
-        logger.info("Updating statistics...")
-        dump_yaml(config_dir / STATISTICS_FILENAME, prune_statistics(statistics))
+    process_all(config, mutate=True, collect_statistics=False)
     return 0
 
 
