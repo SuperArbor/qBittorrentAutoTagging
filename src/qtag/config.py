@@ -50,13 +50,16 @@ def prepare_runtime(config: dict[str, Any]) -> dict[str, Any]:
     auto_tags = {
         name: dict(spec) for name, spec in (config.get("auto_tags") or {}).items() if not spec.get("ignore")
     }
-    for spec in auto_tags.values():
+    for name, spec in auto_tags.items():
         if spec.get("prefix") is None:
             spec["prefix"] = ""
         if spec.get("max_number") in (None, 0):
             spec["max_number"] = -1
         when = spec.get("when") or []
         spec["when"] = [when] if isinstance(when, str) else list(when)
+        if name == "team":
+            special = spec.get("special") or []
+            spec["special"] = [special] if isinstance(special, str) else [str(item) for item in special]
 
     trackers = {name: dict(spec) for name, spec in (config.get("trackers") or {}).items()}
     for spec in trackers.values():

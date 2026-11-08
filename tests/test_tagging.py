@@ -1,6 +1,7 @@
 import unittest
 
 from qtag.tagging import (
+    classify_format_by_files,
     classify_media_by_files,
     decode_torrent_tags,
     filter_by_when,
@@ -33,8 +34,8 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "1996",
                 "resolution": "1080p",
-                "process_method": "x265",
-                "process_type": "Encode",
+                "format": "x265",
+                "process": "Encode",
                 "team": "c0kE",
                 "producer": "",
             },
@@ -44,8 +45,8 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "1993",
                 "resolution": "1080p",
-                "process_method": "x264",
-                "process_type": "Encode",
+                "format": "x264",
+                "process": "Encode",
                 "team": "Friday",
                 "producer": "",
             },
@@ -55,8 +56,8 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "1999",
                 "resolution": "1080p",
-                "process_method": "H.265",
-                "process_type": "Raw",
+                "format": "H.265",
+                "process": "Encode",
                 "team": "HiDt",
                 "producer": "",
             },
@@ -66,8 +67,8 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "2008",
                 "resolution": "1080p",
-                "process_method": "H.264",
-                "process_type": "Raw",
+                "format": "H.264",
+                "process": "Encode",
                 "team": "LoRD",
                 "producer": "",
             },
@@ -77,8 +78,8 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "2005",
                 "resolution": "1080i",
-                "process_method": "MPEG-2",
-                "process_type": "Raw",
+                "format": "MPEG-2",
+                "process": "Remux",
                 "team": "G00DB0Y",
                 "producer": "",
             },
@@ -88,8 +89,8 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "2022",
                 "resolution": "2160p",
-                "process_method": "H.265",
-                "process_type": "Raw",
+                "format": "H.265",
+                "process": "Encode",
                 "team": "Rainbaby",
                 "producer": "",
             },
@@ -112,7 +113,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
         self.assertEqual(tags["team"], "EbP")
 
     def test_tag_types_subset(self):
-        tag_types_all = ["media", "name", "source", "year", "resolution", "process_method", "process_type", "team"]
+        tag_types_all = ["media", "name", "source", "year", "resolution", "format", "process", "team"]
         combinations = [[0], [0, 1], [2, 4], [3, 4, 5], [7], list(range(len(tag_types_all)))]
         torrent_name = "The.Frighteners.1996.DC.1080p.UHD.BluRay.DDP.7.1.DoVi.HDR10.x265-c0kE"
         for comb in combinations:
@@ -120,11 +121,46 @@ class TestDecodeTorrentTags(unittest.TestCase):
             tags = decode_torrent_tags(torrent_name, teams=[], tag_types=tag_types)
             self.assertEqual(set(tags.keys()), set(tag_types))
 
+    def test_web_sources_and_process(self):
+        webdl = decode_torrent_tags("Title.2020.1080p.WEB-DL.H.264-GROUP")
+        self.assertEqual(webdl["source"], "WEB-DL")
+        self.assertEqual(webdl["process"], "Raw")
+        self.assertEqual(webdl["format"], "H.264")
+        web = decode_torrent_tags("Title.2020.1080p.WEB.H.264-GROUP")
+        self.assertEqual(web["source"], "WEB-DL")
+        self.assertEqual(web["process"], "Raw")
+        webrip = decode_torrent_tags("Title.2020.1080p.WEBRip.x264-GROUP")
+        self.assertEqual(webrip["source"], "WEBRip")
+        self.assertEqual(webrip["process"], "Encode")
+        self.assertEqual(webrip["format"], "x264")
+
+    def test_special_team(self):
+        tags = decode_torrent_tags(
+            "Title.2020.1080p.BluRay.x264-D-Z0N3",
+            special_teams=["de[42]", "D-Z0N3"],
+        )
+        self.assertEqual(tags["team"], "D-Z0N3")
+        self.assertEqual(tags["format"], "x264")
+        tags = decode_torrent_tags(
+            "Title.2020.1080p.BluRay.x265-de[42]",
+            special_teams=["de[42]", "D-Z0N3"],
+        )
+        self.assertEqual(tags["team"], "de[42]")
+        self.assertEqual(tags["format"], "x265")
+
+    def test_four_k_maps_to_2160p(self):
+        tags = decode_torrent_tags("Title.2019.4K.BluRay.x265-GROUP")
+        self.assertEqual(tags["resolution"], "2160p")
+        tags = decode_torrent_tags("Title.2019.4K.Remaster.BluRay.x265-GROUP")
+        self.assertNotEqual(tags["resolution"], "2160p")
+
 
 class TestTrackerStrategy(unittest.TestCase):
     def test_strategies(self):
         self.assertEqual(tagging_strategy(["Music"]), "music")
         self.assertEqual(tagging_strategy(["Ebook", "Audiobook"]), "files")
+        self.assertEqual(tagging_strategy(["Ebook", "Audiobook", "Manga"]), "files")
+        self.assertEqual(tagging_strategy(["Manga"]), "files")
         self.assertEqual(tagging_strategy(["Movie", "TV"]), "name")
         self.assertEqual(tagging_strategy(["Movie", "TV", "Music", "XXX"]), "name")
         self.assertEqual(tagging_strategy(None), "name")
@@ -164,15 +200,39 @@ class TestClassifyByFiles(unittest.TestCase):
         files = ["Title/book.epub", "Title/book.m4b", "Title/cover.png"]
         self.assertEqual(classify_media_by_files(files), "Audiobook")
 
+    def test_manga_cbr_cbz(self):
+        self.assertEqual(classify_media_by_files(["Series/ch01.cbz", "Series/ch02.cbz"]), "Manga")
+        self.assertEqual(classify_media_by_files(["comic.cbr", "cover.jpg"]), "Manga")
+
+    def test_mixed_prefers_manga_over_ebook(self):
+        self.assertEqual(classify_media_by_files(["Title.epub", "Title.cbz"]), "Manga")
+
+    def test_mixed_prefers_audiobook_over_manga(self):
+        self.assertEqual(classify_media_by_files(["Title.cbz", "Title.m4b"]), "Audiobook")
+
     def test_nested_epub_in_zip_suffix(self):
         self.assertEqual(classify_media_by_files(["Title.epub.zip"]), "Ebook")
 
     def test_keyword_fallback(self):
         self.assertEqual(classify_media_by_files(["archive.zip"], "Some Book EPUB"), "Ebook")
         self.assertEqual(classify_media_by_files(["archive.rar"], "Some Book M4B"), "Audiobook")
+        self.assertEqual(classify_media_by_files(["archive.rar"], "Title CBZ"), "Manga")
 
     def test_sidecars_only(self):
         self.assertEqual(classify_media_by_files(["cover.jpg", "readme.txt", "book.cue"]), "")
+
+    def test_format_from_audio_exts(self):
+        self.assertEqual(classify_format_by_files(["Book.m4b", "cover.jpg"]), "M4B")
+        self.assertEqual(classify_format_by_files(["01.flac", "02.flac", "album.cue"]), "FLAC")
+        self.assertEqual(classify_format_by_files(["a.mp3", "b.mp3", "c.flac"]), "MP3")
+        self.assertEqual(classify_format_by_files(["cover.jpg", "book.cue"]), "")
+
+    def test_format_from_ebook_manga_exts(self):
+        self.assertEqual(classify_format_by_files(["Title.epub", "cover.jpg"]), "EPUB")
+        self.assertEqual(classify_format_by_files(["a.epub", "b.epub", "Title.mobi"]), "EPUB")
+        self.assertEqual(classify_format_by_files(["Title.pdf"]), "PDF")
+        self.assertEqual(classify_format_by_files(["ch01.cbz", "ch02.cbz", "cover.png"]), "CBZ")
+        self.assertEqual(classify_format_by_files(["comic.cbr"]), "CBR")
 
 
 class TestFilterByWhen(unittest.TestCase):
@@ -202,7 +262,7 @@ class TestFilterByWhen(unittest.TestCase):
             "media": {"when": []},
             "source": {"when": ["Movie", "TV"]},
         }
-        tags = {"media": "", "source": "WEB"}
+        tags = {"media": "", "source": "WEB-DL"}
         self.assertEqual(filter_by_when(tags, auto_tags), {"media": ""})
 
 

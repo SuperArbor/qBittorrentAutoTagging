@@ -9,8 +9,10 @@ import qbittorrentapi as qbit
 
 from qtag.config import prepare_runtime
 from qtag.tagging import (
+    FILE_MEDIA,
     TAGS,
     UNKNOWN_TAG,
+    classify_format_by_files,
     classify_media_by_files,
     decode_torrent_tags,
     filter_by_when,
@@ -74,15 +76,23 @@ def tags_for_torrent(
     media_types = trackers[category]["media"] if category else None
     strategy = tagging_strategy(media_types)
     if strategy == "music":
-        return {"media": "Music"}
+        tags = {"media": "Music"}
+        if "format" in auto_tags:
+            tags["format"] = classify_format_by_files(torrent_file_names(torrent))
+        return tags
     if strategy == "files":
-        return {"media": classify_media_by_files(torrent_file_names(torrent), torrent.name)}
+        media = classify_media_by_files(torrent_file_names(torrent), torrent.name)
+        tags = {"media": media}
+        if media in FILE_MEDIA and "format" in auto_tags:
+            tags["format"] = classify_format_by_files(torrent_file_names(torrent))
+        return tags
     try_xxx = bool(category) and "XXX" in trackers[category]["media"]
     return decode_torrent_tags(
         torrent.name,
         teams=teams,
         tag_types=list(auto_tags),
         try_xxx=try_xxx,
+        special_teams=list((auto_tags.get("team") or {}).get("special") or []),
     )
 
 

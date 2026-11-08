@@ -5,7 +5,7 @@ qbittorrent:
   username: admin
   password: admin
 # 自动标签规则。机器按这些规则生成 tag，与下方 manual_tags 相对
-# 可选: media, source, year, resolution, process_method, process_type, team, producer
+# 可选: media, source, year, resolution, format, process, team, producer
 # prefix: 写到客户端时加在 tag 前面的符号；省略则为空
 # max_number: 全库这一类最多保留几种取值（按出现次数取前 N）。
 #   例: team 为 2 → 只留下全库最常见的 2 个组名，其它种子不打 team。
@@ -13,23 +13,27 @@ qbittorrent:
 # ignore: true = 不生成这一类；省略或 false = 生成
 # when: 仅当该种 media 为所列值时才打；省略则不限制
 auto_tags:
-  media:                # Movie, TV, Music, XXX, Ebook, Audiobook
+  media:                # Movie, TV, Music, XXX, Ebook, Audiobook, Manga
     prefix: '#'
-  source:               # BluRay, DVD, HDTV, WEB
+  source:               # BluRay, WEB-DL, WEBRip, DVD, HDTV, HDDVD, HDRip
     prefix: '$'
     when: [Movie, TV]
-  resolution:           # 720p/i, 1080p/i, 2160p/i
+  resolution:           # 720p/i, 1080p/i, 2160p/i, 480p, mHD
     when: [Movie, TV]
   team:                 # 压制组
     prefix: '-'
     max_number: 2
-  process_type:         # Encode, Raw
+    special:            # 含 - 或 []、不能按最后一个 '-' 切开的组名，优先整段匹配
+      - de[42]
+      - D-Z0N3
+    when: [Movie, TV]
+  process:              # Encode, Raw, Remux
     prefix: '~'
     ignore: true
     when: [Movie, TV]
-  process_method:       # H264/H265, x264/x265
+  format:               # 视频从文件名推断 codec，其他 media 类型用文件后缀（FLAC、EPUB、CBZ 等）
     ignore: true
-    when: [Movie, TV]
+    when: [Movie, TV, Music, Audiobook, Ebook, Manga]
   year:                 # 作品年份
     max_number: 3
     ignore: true
@@ -45,7 +49,7 @@ manual_tags:
 # url_key: tracker announce URL 中的关键词
 # ignore: true 则跳过该 tracker；省略或 false = 处理
 # media 为空时按 Movie/TV 片名规则识别；['Music'] 固定打 Music；
-# ['Ebook', 'Audiobook'] 按种子内文件扩展名识别（同时出现时优先 Audiobook）
+# ['Ebook', 'Audiobook', 'Manga'] 按种子内文件扩展名识别（同时出现时优先 Audiobook，其次 Manga）
 trackers:
   NHD:
     url_key: nexushd
@@ -69,3 +73,4 @@ trackers:
     media:
       - Ebook
       - Audiobook
+      - Manga

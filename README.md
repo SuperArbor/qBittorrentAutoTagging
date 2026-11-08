@@ -30,7 +30,7 @@ qtag --init
 
 字段含义和完整示例见 `config.yaml.temp`。`url_key` 是 tracker announce URL 里的关键词。
 
-识别按 tracker 的 `media` 分流：空则按种子名识别 Movie/TV；`['Music']` 直接打 Music；含 `XXX` 再用编号规则；`['Ebook', 'Audiobook']` 看文件扩展名（同时出现时优先 Audiobook）。
+识别按 tracker 的 `media` 分流：空则按种子名识别 Movie/TV；`['Music']` 直接打 Music；含 `XXX` 再用编号规则；`['Ebook', 'Audiobook', 'Manga']` 看文件扩展名（同时出现时优先 Audiobook，其次 Manga）。
 
 ## 使用
 

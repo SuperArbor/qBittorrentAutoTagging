@@ -13,6 +13,7 @@ def test_default_config_contains_mam():
     assert "myanonamouse" in text
     assert "Ebook" in text
     assert "Audiobook" in text
+    assert "Manga" in text
     assert "qbittorrent:" in text
     assert "auto_tags:" in text
     assert "tag_types:" not in text
@@ -21,6 +22,11 @@ def test_default_config_contains_mam():
     assert "update_tags:" not in text
     assert "max_number: -1" not in text
     assert "ignore: false" not in text
+    assert "process_method" not in text
+    assert "process_type" not in text
+    assert "codec:" not in text
+    assert "format:" in text
+    assert "process:" in text
 
 
 def test_write_default_config(tmp_path: Path):
@@ -43,7 +49,7 @@ def test_prepare_runtime_defaults():
             "trackers": {
                 "NHD": {"url_key": "nexushd"},
                 "OpenCD": {"url_key": "open.cd", "media": ["Music"]},
-                "MAM": {"url_key": "myanonamouse", "media": ["Ebook", "Audiobook"]},
+                "MAM": {"url_key": "myanonamouse", "media": ["Ebook", "Audiobook", "Manga"]},
             },
         }
     )
@@ -73,3 +79,10 @@ def test_prepare_runtime_normalizes_when():
     assert runtime["auto_tags"]["media"]["when"] == []
     assert runtime["auto_tags"]["source"]["when"] == ["Movie"]
     assert runtime["auto_tags"]["producer"]["when"] == ["XXX"]
+
+
+def test_prepare_runtime_team_special():
+    runtime = prepare_runtime({"auto_tags": {"team": {"prefix": "-", "special": ["D-Z0N3"]}}})
+    assert runtime["auto_tags"]["team"]["special"] == ["D-Z0N3"]
+    runtime = prepare_runtime({"auto_tags": {"team": {"prefix": "-"}}})
+    assert runtime["auto_tags"]["team"]["special"] == []
