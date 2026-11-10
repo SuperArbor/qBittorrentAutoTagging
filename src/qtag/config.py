@@ -13,11 +13,20 @@ from qtag.tagging import DEFAULT_TRACKER_MEDIA, TAGS, compile_producer_patterns
 
 APP_NAME = "qtag"
 CONFIG_FILENAME = "config.yaml"
+CONFIG_SUFFIXES = {".yaml", ".yml"}
 
 
 def default_config_dir() -> Path:
     """Windows Roaming / Linux ~/.config / macOS Application Support."""
     return Path(user_config_dir(appname=APP_NAME, appauthor=False, roaming=True))
+
+
+def resolve_config_path(given: Path | None) -> Path:
+    """Resolve `--config` to a yaml file: a file as-is, a directory as dir/config.yaml."""
+    path = (given or default_config_dir()).expanduser().resolve()
+    if path.is_file() or (not path.is_dir() and path.suffix.lower() in CONFIG_SUFFIXES):
+        return path
+    return path / CONFIG_FILENAME
 
 
 def default_config_text() -> str:
@@ -37,8 +46,7 @@ def load_yaml(path: Path) -> Any:
         return yaml.safe_load(handle)
 
 
-def load_config(config_dir: Path) -> dict[str, Any]:
-    path = config_dir / CONFIG_FILENAME
+def load_config(path: Path) -> dict[str, Any]:
     data = load_yaml(path)
     if not isinstance(data, dict):
         raise ValueError(f"Invalid config at {path}")

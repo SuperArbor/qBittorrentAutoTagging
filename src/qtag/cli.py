@@ -11,7 +11,7 @@ import yaml
 
 from qtag import __version__
 from qtag.client import process_all, process_new
-from qtag.config import CONFIG_FILENAME, default_config_dir, load_config, write_default_config
+from qtag.config import load_config, resolve_config_path, write_default_config
 from qtag.tagging import prune_statistics
 
 logger = logging.getLogger("qtag")
@@ -28,9 +28,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="种子 info hash。省略时处理客户端中的全部种子。",
     )
     parser.add_argument(
-        "--config-dir",
+        "--config",
         type=Path,
-        help="config.yaml 所在目录。默认使用系统配置目录。",
+        help="配置文件，或 config.yaml 所在目录。默认使用系统配置目录。",
     )
     parser.add_argument(
         "--init",
@@ -73,8 +73,7 @@ def configure_logging(verbose: bool, *, quiet: bool = False) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     configure_logging(args.verbose, quiet=args.report)
-    config_dir = (args.config_dir or default_config_dir()).expanduser().resolve()
-    config_path = config_dir / CONFIG_FILENAME
+    config_path = resolve_config_path(args.config)
 
     if args.init:
         created = write_default_config(config_path, overwrite=False)
@@ -94,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Edit qbittorrent host/port/username/password, then run qtag again.")
         return 1
 
-    config = load_config(config_dir)
+    config = load_config(config_path)
 
     if args.report:
         statistics = process_all(config, mutate=False, collect_statistics=True)

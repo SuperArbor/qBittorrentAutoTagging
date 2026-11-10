@@ -35,10 +35,11 @@ qtag --init
 ## 使用
 
 ```shell
-qtag --help       # 查看全部参数
-qtag              # 处理客户端里的全部种子
-qtag HASH         # 只处理这一个种子
-qtag --report     # 控制台输出统计（不写文件、不改客户端）
+qtag --help                 # 查看全部参数
+qtag                        # 处理客户端里的全部种子
+qtag HASH                   # 只处理这一个种子
+qtag --report               # 控制台输出统计（不写文件、不改客户端）
+qtag --config PATH          # 指定配置文件，或 config.yaml 所在目录
 ```
 
 `HASH` 是种子的 Info hash v1：在 qBittorrent 中右键种子 → 复制 → 信息哈希值 v1。
