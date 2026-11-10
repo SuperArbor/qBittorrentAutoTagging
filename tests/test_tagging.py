@@ -46,7 +46,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "1996",
                 "resolution": "1080p",
-                "format": "x265",
+                "codec": "x265",
                 "process": "Encode",
                 "team": "c0kE",
                 "producer": "",
@@ -57,7 +57,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "1993",
                 "resolution": "1080p",
-                "format": "x264",
+                "codec": "x264",
                 "process": "Encode",
                 "team": "Friday",
                 "producer": "",
@@ -68,7 +68,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "1999",
                 "resolution": "1080p",
-                "format": "H.265",
+                "codec": "H.265",
                 "process": "Encode",
                 "team": "HiDt",
                 "producer": "",
@@ -79,7 +79,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "2008",
                 "resolution": "1080p",
-                "format": "H.264",
+                "codec": "H.264",
                 "process": "Encode",
                 "team": "LoRD",
                 "producer": "",
@@ -90,7 +90,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "2005",
                 "resolution": "1080i",
-                "format": "MPEG-2",
+                "codec": "MPEG-2",
                 "process": "Remux",
                 "team": "G00DB0Y",
                 "producer": "",
@@ -101,7 +101,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
                 "source": "BluRay",
                 "year": "2022",
                 "resolution": "2160p",
-                "format": "H.265",
+                "codec": "H.265",
                 "process": "Encode",
                 "team": "Rainbaby",
                 "producer": "",
@@ -143,7 +143,7 @@ class TestDecodeTorrentTags(unittest.TestCase):
         self.assertEqual(tags["team"], "EbP")
 
     def test_tag_types_subset(self):
-        tag_types_all = ["media", "name", "source", "year", "resolution", "format", "process", "team"]
+        tag_types_all = ["media", "name", "source", "year", "resolution", "codec", "process", "team"]
         combinations = [[0], [0, 1], [2, 4], [3, 4, 5], [7], list(range(len(tag_types_all)))]
         torrent_name = "The.Frighteners.1996.DC.1080p.UHD.BluRay.DDP.7.1.DoVi.HDR10.x265-c0kE"
         for comb in combinations:
@@ -155,14 +155,14 @@ class TestDecodeTorrentTags(unittest.TestCase):
         webdl = decode_torrent_tags("Title.2020.1080p.WEB-DL.H.264-GROUP")
         self.assertEqual(webdl["source"], "WEB-DL")
         self.assertEqual(webdl["process"], "Raw")
-        self.assertEqual(webdl["format"], "H.264")
+        self.assertEqual(webdl["codec"], "H.264")
         web = decode_torrent_tags("Title.2020.1080p.WEB.H.264-GROUP")
         self.assertEqual(web["source"], "WEB-DL")
         self.assertEqual(web["process"], "Raw")
         webrip = decode_torrent_tags("Title.2020.1080p.WEBRip.x264-GROUP")
         self.assertEqual(webrip["source"], "WEBRip")
         self.assertEqual(webrip["process"], "Encode")
-        self.assertEqual(webrip["format"], "x264")
+        self.assertEqual(webrip["codec"], "x264")
 
     def test_special_team(self):
         tags = decode_torrent_tags(
@@ -170,13 +170,13 @@ class TestDecodeTorrentTags(unittest.TestCase):
             special_teams=["de[42]", "D-Z0N3"],
         )
         self.assertEqual(tags["team"], "D-Z0N3")
-        self.assertEqual(tags["format"], "x264")
+        self.assertEqual(tags["codec"], "x264")
         tags = decode_torrent_tags(
             "Title.2020.1080p.BluRay.x265-de[42]",
             special_teams=["de[42]", "D-Z0N3"],
         )
         self.assertEqual(tags["team"], "de[42]")
-        self.assertEqual(tags["format"], "x265")
+        self.assertEqual(tags["codec"], "x265")
 
     def test_four_k_maps_to_2160p(self):
         tags = decode_torrent_tags("Title.2019.4K.BluRay.x265-GROUP")
@@ -264,6 +264,27 @@ class TestClassifyByFiles(unittest.TestCase):
         self.assertEqual(classify_format_by_files(["ch01.cbz", "ch02.cbz", "cover.png"]), "CBZ")
         self.assertEqual(classify_format_by_files(["comic.cbr"]), "CBR")
 
+    def test_format_multi_tag_unique_suffixes(self):
+        files = ["Title.epub", "Title.mobi", "Title.azw3", "cover.jpg"]
+        self.assertEqual(
+            classify_format_by_files(files, multi_tag=True),
+            ["EPUB", "MOBI", "AZW3"],
+        )
+        self.assertEqual(classify_format_by_files(["a.epub", "b.epub"], multi_tag=True), ["EPUB"])
+
+    def test_format_skips_disallowed_media(self):
+        files = ["Title.epub", "clip.mkv", "cover.jpg"]
+        allowed = {"Ebook", "Audiobook", "Manga"}
+        when = ["Music", "Audiobook", "Ebook", "Manga"]
+        self.assertEqual(
+            classify_format_by_files(files, allowed_media=allowed, when=when),
+            "EPUB",
+        )
+        self.assertEqual(
+            classify_format_by_files(files, allowed_media=allowed, when=when, multi_tag=True),
+            ["EPUB"],
+        )
+
 
 class TestFilterByWhen(unittest.TestCase):
     def test_keeps_unconstrained_and_matching(self):
@@ -287,6 +308,17 @@ class TestFilterByWhen(unittest.TestCase):
         tags = {"media": "Ebook", "source": "BluRay", "resolution": "1080p"}
         self.assertEqual(filter_by_when(tags, auto_tags), {"media": "Ebook"})
 
+    def test_format_when_uses_implied_media(self):
+        auto_tags = {
+            "media": {"when": []},
+            "format": {"when": ["Ebook", "Audiobook", "Manga"]},
+        }
+        tags = {"media": "Audiobook", "format": ["EPUB", "M4B", "MKV"]}
+        self.assertEqual(
+            filter_by_when(tags, auto_tags),
+            {"media": "Audiobook", "format": ["EPUB", "M4B"]},
+        )
+
     def test_empty_media_fails_when(self):
         auto_tags = {
             "media": {"when": []},
@@ -305,6 +337,8 @@ class TestPrefixAndPrune(unittest.TestCase):
         }
         tags_ui = prefix_tags({"media": "Ebook", "team": "", "resolution": "1080p"}, auto_tags)
         self.assertEqual(tags_ui, {"media": "#Ebook", "team": "", "resolution": "1080p"})
+        tagged = prefix_tags({"format": ["EPUB", "MOBI"]}, {"format": {"prefix": ""}})
+        self.assertEqual(tagged, {"format": ["EPUB", "MOBI"]})
 
     def test_prune_statistics(self):
         statistics = {

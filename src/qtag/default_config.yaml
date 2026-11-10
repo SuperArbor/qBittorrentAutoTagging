@@ -4,14 +4,9 @@ qbittorrent:
   port: 8080
   username: admin
   password: admin
-# 自动标签规则。机器按这些规则生成 tag，与下方 manual_tags 相对
-# 可选: media, source, year, resolution, format, process, team, producer
-# prefix: 写到客户端时加在 tag 前面的符号；省略则为空
-# max_number: 全库这一类最多保留几种取值（按出现次数取前 N）。
-#   例: team 为 2 → 只留下全库最常见的 2 个组名，其它种子不打 team。
-#   省略或 -1 = 不限制。只在「qtag」处理全部种子时生效，单种 / 新增时不裁。
-# ignore: true = 不生成这一类；省略或 false = 生成
-# when: 仅当该种 media 为所列值时才打；省略则不限制
+# 自动标签。字段说明见 README「自动标签」。
+# 通用: prefix / max_number / ignore / when
+# 限定: team.special、format.multi_tag、producer.patterns
 auto_tags:
   media:                # Movie, TV, Music, XXX, Ebook, Audiobook, Manga
     prefix: '#'
@@ -31,9 +26,13 @@ auto_tags:
     prefix: '~'
     ignore: true
     when: [Movie, TV]
-  format:               # 视频从文件名推断 codec，其他 media 类型用文件后缀（FLAC、EPUB、CBZ 等）
+  codec:                # 种子名中的视频编码（x264、H.265 等）
     ignore: true
-    when: [Movie, TV, Music, Audiobook, Ebook, Manga]
+    when: [Movie, TV]
+  format:               # 内容文件后缀（FLAC、EPUB、CBZ 等）
+    ignore: true
+    when: [Music, Audiobook, Ebook, Manga]
+    # multi_tag: true   # 每个够格后缀各打一个；省略为 false
   year:                 # 作品年份
     max_number: 3
     ignore: true

@@ -26,7 +26,7 @@ def test_default_config_contains_mam():
     assert "ignore: false" not in text
     assert "process_method" not in text
     assert "process_type" not in text
-    assert "codec:" not in text
+    assert "codec:" in text
     assert "format:" in text
     assert "process:" in text
     assert "patterns:" in text
@@ -83,6 +83,13 @@ def test_prepare_runtime_normalizes_when():
     assert runtime["auto_tags"]["media"]["when"] == []
     assert runtime["auto_tags"]["source"]["when"] == ["Movie"]
     assert runtime["auto_tags"]["producer"]["when"] == ["XXX"]
+
+
+def test_prepare_runtime_format_multi_tag():
+    runtime = prepare_runtime({"auto_tags": {"format": {"when": ["Ebook"]}}})
+    assert runtime["auto_tags"]["format"]["multi_tag"] is False
+    runtime = prepare_runtime({"auto_tags": {"format": {"multi_tag": True, "when": ["Ebook"]}}})
+    assert runtime["auto_tags"]["format"]["multi_tag"] is True
 
 
 def test_prepare_runtime_team_special():

@@ -12,10 +12,13 @@ from qtag.tagging import (
     FILE_MEDIA,
     TAGS,
     UNKNOWN_TAG,
+    TagMap,
+    TagValue,
     classify_format_by_files,
     classify_media_by_files,
     decode_torrent_tags,
     filter_by_when,
+    iter_tag_values,
     prefix_tags,
     tagging_strategy,
 )
@@ -53,14 +56,14 @@ def match_category(tracker_urls: list[str], trackers: dict[str, dict]) -> str:
 
 def write_torrent_tags(
     torrent: qbit.TorrentDictionary,
-    tags_ui: dict[str, str],
+    tags_ui: TagMap,
     manual_tags: list[str],
 ) -> None:
     current_tags = [tag.strip() for tag in torrent["tags"].split(",") if tag.strip()]
     to_remove = [tag for tag in current_tags if tag not in manual_tags]
     if to_remove:
         torrent.remove_tags(to_remove)
-    to_add = [tag for tag in tags_ui.values() if tag]
+    to_add = [tag for value in tags_ui.values() for tag in iter_tag_values(value)]
     if to_add:
         torrent.add_tags(to_add)
     logger.info("tags: %s", to_add)
@@ -72,28 +75,49 @@ def tags_for_torrent(
     trackers: dict[str, dict],
     auto_tags: dict[str, dict],
     teams: list[str],
-) -> dict[str, str]:
+) -> TagMap:
     media_types = trackers[category]["media"] if category else None
     strategy = tagging_strategy(media_types)
     if strategy == "music":
-        tags = {"media": "Music"}
-        if "format" in auto_tags:
-            tags["format"] = classify_format_by_files(torrent_file_names(torrent))
+        tags: TagMap = {"media": "Music"}
+        _apply_format_from_files(tags, torrent, auto_tags, media_types)
         return tags
     if strategy == "files":
-        media = classify_media_by_files(torrent_file_names(torrent), torrent.name)
+        files = torrent_file_names(torrent)
+        media = classify_media_by_files(files, torrent.name)
         tags = {"media": media}
-        if media in FILE_MEDIA and "format" in auto_tags:
-            tags["format"] = classify_format_by_files(torrent_file_names(torrent))
+        if media in FILE_MEDIA:
+            _apply_format_from_files(tags, torrent, auto_tags, media_types, files)
         return tags
     try_xxx = bool(category) and "XXX" in trackers[category]["media"] and "producer" in auto_tags
-    return decode_torrent_tags(
+    name_types = [name for name in auto_tags if name != "format"]
+    tags = decode_torrent_tags(
         torrent.name,
         teams=teams,
-        tag_types=list(auto_tags),
+        tag_types=name_types,
         try_xxx=try_xxx,
         special_teams=list((auto_tags.get("team") or {}).get("special") or []),
         producer_patterns=list((auto_tags.get("producer") or {}).get("patterns") or []),
+    )
+    _apply_format_from_files(tags, torrent, auto_tags, media_types)
+    return tags
+
+
+def _apply_format_from_files(
+    tags: TagMap,
+    torrent: qbit.TorrentDictionary,
+    auto_tags: dict[str, dict],
+    media_types: list[str] | None,
+    files: list[str] | None = None,
+) -> None:
+    spec = auto_tags.get("format")
+    if spec is None:
+        return
+    tags["format"] = classify_format_by_files(
+        files if files is not None else torrent_file_names(torrent),
+        allowed_media=set(media_types) if media_types else None,
+        when=spec.get("when") or [],
+        multi_tag=bool(spec.get("multi_tag")),
     )
 
 
@@ -105,7 +129,7 @@ def handle_torrent(
     delay_operation: bool,
     *,
     mutate: bool = True,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[TagMap, TagMap]:
     tags = tags_for_torrent(
         torrent=torrent,
         category=category,
@@ -121,7 +145,7 @@ def handle_torrent(
 
 
 def _record_statistics(
-    tags: dict[str, str],
+    tags: TagMap,
     category: str,
     auto_tags: dict[str, dict],
     statistics_total: dict,
@@ -132,18 +156,18 @@ def _record_statistics(
     for tag_type, raw_value in tags.items():
         if tag_type not in auto_tags:
             continue
-        if not raw_value:
+        values = iter_tag_values(raw_value)
+        if not values:
             if tag_type != "media":
                 continue
-            tag_value = UNKNOWN_TAG
-        else:
-            tag_value = raw_value
-        statistics_total.setdefault(tag_type, {})
-        statistics_total[tag_type][tag_value] = statistics_total[tag_type].get(tag_value, 0) + 1
-        if category:
-            statistics_categories[category].setdefault(tag_type, {})
-            bucket = statistics_categories[category][tag_type]
-            bucket[tag_value] = bucket.get(tag_value, 0) + 1
+            values = [UNKNOWN_TAG]
+        for tag_value in values:
+            statistics_total.setdefault(tag_type, {})
+            statistics_total[tag_type][tag_value] = statistics_total[tag_type].get(tag_value, 0) + 1
+            if category:
+                statistics_categories[category].setdefault(tag_type, {})
+                bucket = statistics_categories[category][tag_type]
+                bucket[tag_value] = bucket.get(tag_value, 0) + 1
 
 
 def init_statistics(auto_tags: dict[str, dict], statistics: dict[str, Any]) -> tuple[dict, dict]:
@@ -228,7 +252,7 @@ def process_all(
     logger.info("Running %s delay operation mode", "with" if delay_operation else "without")
 
     client = _connect(config)
-    torrent_tags: dict[str, dict[str, str]] = {}
+    torrent_tags: dict[str, TagMap] = {}
     try:
         client.auth_log_in()
         if mutate:
@@ -293,18 +317,17 @@ def process_all(
     return {"TOTAL": statistics_total, "CATEGORIES": statistics_categories}
 
 
-def _apply_delayed_tags(client: qbit.Client, torrent_tags: dict[str, dict[str, str]], runtime: dict[str, Any]) -> None:
+def _apply_delayed_tags(client: qbit.Client, torrent_tags: dict[str, TagMap], runtime: dict[str, Any]) -> None:
     logger.info("Delay operation starts: updating tags...")
     auto_tags = runtime["auto_tags"]
     tag_type_tags = {name: set() for name in auto_tags}
     tag_numbers: dict[str, int] = {}
     for tags_ui in torrent_tags.values():
         for tag_type, tag in tags_ui.items():
-            if not tag:
-                continue
-            tag_numbers[tag] = tag_numbers.get(tag, 0) + 1
-            if tag_type in tag_type_tags:
-                tag_type_tags[tag_type].add(tag)
+            for item in iter_tag_values(tag):
+                tag_numbers[item] = tag_numbers.get(item, 0) + 1
+                if tag_type in tag_type_tags:
+                    tag_type_tags[tag_type].add(item)
 
     tags_to_remove: list[str] = []
     for tag_type, values in tag_type_tags.items():
@@ -320,8 +343,16 @@ def _apply_delayed_tags(client: qbit.Client, torrent_tags: dict[str, dict[str, s
     for count, (info_hash, tags_ui) in enumerate(torrent_tags.items(), start=1):
         torrent = client.torrents_info(torrent_hashes=info_hash)[0]
         logger.info("(%s / %s) Tagging torrent %s...", count, total, torrent.name)
-        filtered = {key: value for key, value in tags_ui.items() if value not in tags_to_remove}
+        filtered = {key: _drop_capped_values(value, tags_to_remove) for key, value in tags_ui.items()}
         write_torrent_tags(torrent, filtered, manual_tags)
+
+
+def _drop_capped_values(value: TagValue, tags_to_remove: list[str]) -> TagValue:
+    if isinstance(value, list):
+        return [item for item in value if item not in tags_to_remove]
+    if value in tags_to_remove:
+        return ""
+    return value
 
 
 def _delete_unused_tags(client: qbit.Client) -> None:

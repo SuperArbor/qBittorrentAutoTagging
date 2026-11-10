@@ -5,6 +5,10 @@ from __future__ import annotations
 import datetime
 import re
 from pathlib import Path
+from typing import TypeAlias
+
+TagValue: TypeAlias = str | list[str]
+TagMap: TypeAlias = dict[str, TagValue]
 
 SPLITTERS = [".", " "]
 SPLITTER_TEAM = "-"
@@ -20,7 +24,7 @@ TAGS = {
     "media": ["Movie", "TV", "Music", "XXX", "Ebook", "Audiobook", "Manga"],
     "source": ["BluRay", "WEB-DL", "WEBRip", "DVD", "HDTV", "HDDVD", "HDRip"],
     "process": ["Encode", "Raw", "Remux"],
-    "format": [
+    "codec": [
         "x264",
         "x265",
         "x266",
@@ -31,6 +35,18 @@ TAGS = {
         "MPEG-2",
         "VC-1",
         "AV1",
+    ],
+    "format": [
+        "MKV",
+        "MP4",
+        "AVI",
+        "TS",
+        "WMV",
+        "MPG",
+        "MPEG",
+        "M4V",
+        "WEBM",
+        "MOV",
         "FLAC",
         "MP3",
         "M4B",
@@ -62,7 +78,7 @@ DEFAULT_TAG_TYPES = [
     "source",
     "year",
     "resolution",
-    "format",
+    "codec",
     "process",
     "team",
     "producer",
@@ -154,31 +170,48 @@ EBOOK_KEYWORDS = ("epub", "mobi", "azw3", "azw", "kfx", "fb2")
 AUDIOBOOK_KEYWORDS = ("m4b", "audiobook", "unabridged")
 MANGA_KEYWORDS = ("cbr", "cbz", "manga")
 
-FORMAT_BY_EXT = {
-    ".m4b": "M4B",
-    ".mp3": "MP3",
-    ".m4a": "M4A",
-    ".flac": "FLAC",
-    ".ogg": "OGG",
-    ".opus": "Opus",
-    ".aac": "AAC",
-    ".wma": "WMA",
-    ".wav": "WAV",
-    ".epub": "EPUB",
-    ".mobi": "MOBI",
-    ".azw": "AZW",
-    ".azw3": "AZW3",
-    ".azw4": "AZW4",
-    ".kfx": "KFX",
-    ".fb2": "FB2",
-    ".pdf": "PDF",
-    ".djvu": "DjVu",
-    ".lit": "LIT",
-    ".cbr": "CBR",
-    ".cbz": "CBZ",
-}
+_AUDIO = frozenset({"Music", "Audiobook"})
+_EBOOK = frozenset({"Ebook"})
+_MANGA = frozenset({"Manga"})
 
-FORMAT_PATTERNS = (
+FORMAT_BY_EXT: dict[str, tuple[str, frozenset[str]]] = {
+    ".mkv": ("MKV", VIDEO_MEDIA),
+    ".mp4": ("MP4", VIDEO_MEDIA),
+    ".avi": ("AVI", VIDEO_MEDIA),
+    ".ts": ("TS", VIDEO_MEDIA),
+    ".wmv": ("WMV", VIDEO_MEDIA),
+    ".mpg": ("MPG", VIDEO_MEDIA),
+    ".mpeg": ("MPEG", VIDEO_MEDIA),
+    ".m4v": ("M4V", VIDEO_MEDIA),
+    ".webm": ("WEBM", VIDEO_MEDIA),
+    ".mov": ("MOV", VIDEO_MEDIA),
+    ".m4b": ("M4B", frozenset({"Audiobook"})),
+    ".mp3": ("MP3", _AUDIO),
+    ".m4a": ("M4A", _AUDIO),
+    ".flac": ("FLAC", _AUDIO),
+    ".ogg": ("OGG", _AUDIO),
+    ".opus": ("Opus", _AUDIO),
+    ".aac": ("AAC", _AUDIO),
+    ".wma": ("WMA", _AUDIO),
+    ".wav": ("WAV", _AUDIO),
+    ".epub": ("EPUB", _EBOOK),
+    ".mobi": ("MOBI", _EBOOK),
+    ".azw": ("AZW", _EBOOK),
+    ".azw3": ("AZW3", _EBOOK),
+    ".azw4": ("AZW4", _EBOOK),
+    ".kfx": ("KFX", _EBOOK),
+    ".fb2": ("FB2", _EBOOK),
+    ".pdf": ("PDF", _EBOOK),
+    ".djvu": ("DjVu", _EBOOK),
+    ".lit": ("LIT", _EBOOK),
+    ".cbr": ("CBR", _MANGA),
+    ".cbz": ("CBZ", _MANGA),
+}
+FORMAT_MEDIA: dict[str, frozenset[str]] = {}
+for _label, _media in FORMAT_BY_EXT.values():
+    FORMAT_MEDIA[_label] = FORMAT_MEDIA.get(_label, frozenset()) | _media
+
+CODEC_PATTERNS = (
     (re.compile(r"^x266$", re.I), "x266"),
     (re.compile(r"^x265$", re.I), "x265"),
     (re.compile(r"^x264$", re.I), "x264"),
@@ -242,18 +275,48 @@ def classify_media_by_files(file_names: list[str], torrent_name: str = "") -> st
     return ""
 
 
-def classify_format_by_files(file_names: list[str]) -> str:
-    """Pick the most common content format from file suffixes."""
+def _format_qualifies(media_set: frozenset[str], allowed_media: set[str] | None, when: list[str]) -> bool:
+    if allowed_media and not (media_set & allowed_media):
+        return False
+    if when and not (media_set & set(when)):
+        return False
+    return True
+
+
+def classify_format_by_files(
+    file_names: list[str],
+    *,
+    allowed_media: set[str] | None = None,
+    when: list[str] | None = None,
+    multi_tag: bool = False,
+) -> TagValue:
+    """Collect content-file suffixes. `multi_tag` keeps each unique label; otherwise the most common."""
+    when = when or []
     counts: dict[str, int] = {}
+    ordered: list[str] = []
     for name in file_names:
         media_exts = {suffix.lower() for suffix in Path(name).suffixes} - IGNORE_EXTS
         for ext in media_exts:
-            fmt = FORMAT_BY_EXT.get(ext)
-            if fmt:
-                counts[fmt] = counts.get(fmt, 0) + 1
+            info = FORMAT_BY_EXT.get(ext)
+            if not info:
+                continue
+            label, media_set = info
+            if not _format_qualifies(media_set, allowed_media, when):
+                continue
+            if label not in counts:
+                ordered.append(label)
+            counts[label] = counts.get(label, 0) + 1
     if not counts:
-        return ""
+        return [] if multi_tag else ""
+    if multi_tag:
+        return ordered
     return max(counts, key=counts.get)
+
+
+def iter_tag_values(value: TagValue) -> list[str]:
+    if isinstance(value, list):
+        return [item for item in value if item]
+    return [value] if value else []
 
 
 def normalize_torrent_name(torrent_name: str) -> str:
@@ -294,33 +357,58 @@ def _match_source_token(token: str) -> str:
     return SOURCE_TOKEN_MAP.get(token.lower(), "")
 
 
-def _match_format_token(token: str) -> str:
-    for pattern, fmt in FORMAT_PATTERNS:
+def _match_codec_token(token: str) -> str:
+    for pattern, fmt in CODEC_PATTERNS:
         if pattern.match(token):
             return fmt
     return ""
 
 
-def filter_by_when(tags: dict[str, str], auto_tags: dict[str, dict]) -> dict[str, str]:
-    """Keep an auto tag only if it has no `when`, or media is in `when`."""
+def _format_when_keeps(label: str, allowed: list[str], torrent_media: str) -> bool:
+    if not allowed:
+        return True
+    implied = FORMAT_MEDIA.get(label)
+    if implied is None:
+        return torrent_media in allowed
+    return bool(implied & set(allowed))
+
+
+def filter_by_when(tags: TagMap, auto_tags: dict[str, dict]) -> TagMap:
+    """Keep an auto tag only if it has no `when`, or media is in `when`.
+
+    `format` values are filtered by the media implied by each suffix, not the torrent media.
+    """
     media = tags.get("media") or ""
-    filtered: dict[str, str] = {}
+    if isinstance(media, list):
+        media = media[0] if media else ""
+    filtered: TagMap = {}
     for name, value in tags.items():
         allowed = (auto_tags.get(name) or {}).get("when") or []
+        if name == "format":
+            kept = [item for item in iter_tag_values(value) if _format_when_keeps(item, allowed, media)]
+            if isinstance(value, list):
+                if kept:
+                    filtered[name] = kept
+            elif kept:
+                filtered[name] = kept[0]
+            continue
         if allowed and media not in allowed:
             continue
         filtered[name] = value
     return filtered
 
 
-def prefix_tags(tags: dict[str, str], auto_tags: dict[str, dict]) -> dict[str, str]:
-    tags_ui: dict[str, str] = {}
+def prefix_tags(tags: TagMap, auto_tags: dict[str, dict]) -> TagMap:
+    tags_ui: TagMap = {}
     for name, tag_value in tags.items():
         spec = auto_tags.get(name)
         if spec is None:
             continue
         prefix = spec.get("prefix") or ""
-        tags_ui[name] = f"{prefix}{tag_value}" if tag_value else ""
+        if isinstance(tag_value, list):
+            tags_ui[name] = [f"{prefix}{item}" if item else "" for item in tag_value]
+        else:
+            tags_ui[name] = f"{prefix}{tag_value}" if tag_value else ""
     return tags_ui
 
 
@@ -457,14 +545,14 @@ def decode_torrent_tags(
                 team = last_item
                 marked.append(len(groups) - 1)
 
-    fmt = ""
-    if "format" in tag_types:
+    codec = ""
+    if "codec" in tag_types:
         for i, group in enumerate(groups_lowered):
             if i in marked:
                 continue
-            matched_format = _match_format_token(group)
-            if matched_format:
-                fmt = matched_format
+            matched_codec = _match_codec_token(group)
+            if matched_codec:
+                codec = matched_codec
                 marked.append(i)
                 break
 
@@ -514,7 +602,7 @@ def decode_torrent_tags(
         "source": source,
         "year": year,
         "resolution": resolution,
-        "format": fmt,
+        "codec": codec,
         "process": process,
         "team": team,
         "producer": producer,

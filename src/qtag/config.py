@@ -70,6 +70,8 @@ def prepare_runtime(config: dict[str, Any]) -> dict[str, Any]:
             spec["special"] = [special] if isinstance(special, str) else [str(item) for item in special]
         if name == "producer":
             spec["patterns"] = compile_producer_patterns(spec.get("patterns"))
+        if name == "format":
+            spec["multi_tag"] = bool(spec.get("multi_tag"))
 
     trackers = {name: dict(spec) for name, spec in (config.get("trackers") or {}).items()}
     for spec in trackers.values():
